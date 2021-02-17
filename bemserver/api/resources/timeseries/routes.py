@@ -1,0 +1,70 @@
+"""Timeseries resources"""
+
+from flask.views import MethodView
+
+from bemserver.api import Blueprint, SQLCursorPage
+from bemserver.database import db
+from bemserver.model import Timeseries
+
+from .schemas import TimeseriesSchema, TimeseriesQueryArgsSchema
+
+
+blp = Blueprint(
+    'Timeseries',
+    __name__,
+    url_prefix='/timeseries',
+    description="Operations on timeseries"
+)
+
+
+@blp.route('/')
+class TimeseriesViews(MethodView):
+
+    @blp.etag
+    @blp.arguments(TimeseriesQueryArgsSchema, location='query')
+    @blp.response(200, TimeseriesSchema(many=True))
+    @blp.paginate(SQLCursorPage)
+    def get(self, args):
+        """List timeseries"""
+        return Timeseries.query.filter_by(**args)
+
+    @blp.etag
+    @blp.arguments(TimeseriesSchema)
+    @blp.response(201, TimeseriesSchema)
+    def post(self, new_item):
+        """Add a new timeseries"""
+        item = Timeseries(**new_item)
+        db.session.add(item)
+        db.session.commit()
+        return item
+
+
+@blp.route('/<int:item_id>')
+class TimeseriesByIdViews(MethodView):
+
+    @blp.etag
+    @blp.response(200, TimeseriesSchema)
+    def get(self, item_id):
+        """Get timeseries by ID"""
+        return Timeseries.query.get_or_404(item_id)
+
+    @blp.etag
+    @blp.arguments(TimeseriesSchema)
+    @blp.response(200, TimeseriesSchema)
+    def put(self, new_item, item_id):
+        """Update an existing timeseries"""
+        item = Timeseries.query.get_or_404(item_id)
+        blp.check_etag(item, TimeseriesSchema)
+        TimeseriesSchema().update(item, new_item)
+        db.session.add(item)
+        db.session.commit()
+        return item
+
+    @blp.etag
+    @blp.response(204)
+    def delete(self, item_id):
+        """Delete a timeseries"""
+        item = Timeseries.query.get_or_404(item_id)
+        blp.check_etag(item, TimeseriesSchema)
+        db.session.delete(item)
+        db.session.commit()
