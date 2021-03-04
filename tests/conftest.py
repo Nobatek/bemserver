@@ -20,36 +20,44 @@ def app():
         db.drop_all()
         db.create_all()
         model.create_hypertables()
-    return application
+        yield application
 
 
-@pytest.fixture
-def timeseries_data(app):
+@pytest.fixture(params=[{}])
+def timeseries_data(request, app):
+
+    param = request.param
+
+    nb_ts = param.get("nb_ts", 1)
+    nb_tsd = param.get("nb_tds", 24 * 100)
+
+    ts_l = []
+
     with app.app_context():
-        ts_1 = model.Timeseries(
-            name="Timeseries 1",
-            description="Test timeseries #1",
-        )
-        db.session.add(ts_1)
 
-        start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
-        nb_samples = 24 * 100
-        for i in range(nb_samples):
-            timestamp = start_dt + dt.timedelta(hours=i)
-            db.session.add(
-                model.TimeseriesData(
-                    timestamp=timestamp,
-                    timeseries=ts_1,
-                    value=i
-                )
+        for i in range(nb_ts):
+            ts_i = model.Timeseries(
+                name=f"Timeseries {i}",
+                description=f"Test timeseries #{i}",
             )
+            db.session.add(ts_i)
+
+            start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+            for i in range(nb_tsd):
+                timestamp = start_dt + dt.timedelta(hours=i)
+                db.session.add(
+                    model.TimeseriesData(
+                        timestamp=timestamp,
+                        timeseries=ts_i,
+                        value=i
+                    )
+                )
+
+            ts_l.append(ts_i)
 
         db.session.commit()
+
         return [
-            (
-                ts_1.id,
-                nb_samples,
-                start_dt,
-                start_dt + dt.timedelta(hours=nb_samples)
-            )
+            (ts.id, nb_tsd, start_dt, start_dt + dt.timedelta(hours=nb_tsd))
+            for ts in ts_l
         ]
