@@ -20,7 +20,7 @@ class TestTimeseriesCSVIO:
             ({"nb_ts": 2, "nb_tsd": 0}, ),
             indirect=True
     )
-    @pytest.mark.parametrize('mode', ('binary', 'text'))
+    @pytest.mark.parametrize('mode', ('str', 'textiobase'))
     def test_timeseries_csv_io_import_csv(self, timeseries_data, mode):
 
         ts_0_id, _, _, _ = timeseries_data[0]
@@ -28,7 +28,7 @@ class TestTimeseriesCSVIO:
 
         assert not TimeseriesData.query.all()
 
-        csv_s = (
+        csv_file = (
             f"Datetime,{ts_0_id},{ts_1_id}\n"
             "2020-01-01T00:00:00+00:00,0,10\n"
             "2020-01-01T01:00:00+00:00,1,11\n"
@@ -36,11 +36,10 @@ class TestTimeseriesCSVIO:
             "2020-01-01T03:00:00+00:00,3,13\n"
         )
 
-        if mode == "text":
-            tscsvio.import_csv(io.StringIO(csv_s))
-        else:
-            csv_b = csv_s.encode("utf-8")
-            tscsvio.import_csv(io.BytesIO(csv_b))
+        if mode == "textiobase":
+            csv_file = io.StringIO(csv_file)
+
+        tscsvio.import_csv(csv_file)
 
         data = db.session.query(
             func.timezone("UTC", TimeseriesData.timestamp).label("timestamp"),

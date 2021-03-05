@@ -17,17 +17,15 @@ class TimeseriesCSVIO:
     def import_csv(csv_file):
         """Import CSV file
 
-        :param IOBase csv_file: CSV as byte or text stream
+        :param srt|TextIOBase csv_file: CSV as string or text stream
         """
-        # TODO: handle file path as input?
-
-        # If stream is binary, wrap to text mode
+        # If input is not a text stream, then it is a plain string
+        # Make it an iterator
         if not isinstance(csv_file, io.TextIOBase):
-            csv_file = io.TextIOWrapper(csv_file)
+            csv_file = csv_file.splitlines()
 
         reader = csv.reader(csv_file)
 
-        # TODO: manage all sorts of malformations
         try:
             header = next(reader)
         except StopIteration as exc:
