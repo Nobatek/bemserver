@@ -17,7 +17,7 @@ class TestTimeseriesCSVIO:
 
     @pytest.mark.parametrize(
             'timeseries_data',
-            ({"nb_ts": 2, "nb_tds": 0}, ),
+            ({"nb_ts": 2, "nb_tsd": 0}, ),
             indirect=True
     )
     @pytest.mark.parametrize('mode', ('binary', 'text'))
@@ -65,7 +65,7 @@ class TestTimeseriesCSVIO:
 
     @pytest.mark.parametrize(
             'timeseries_data',
-            ({"nb_ts": 1, "nb_tds": 0}, ),
+            ({"nb_ts": 1, "nb_tsd": 0}, ),
             indirect=True
     )
     @pytest.mark.parametrize(
@@ -83,3 +83,52 @@ class TestTimeseriesCSVIO:
     def test_timeseries_csv_io_import_csv_error(self, csv_file):
         with pytest.raises(TimeseriesCSVIOError):
             tscsvio.import_csv(io.StringIO(csv_file))
+
+    @pytest.mark.parametrize(
+            'timeseries_data',
+            ({"nb_ts": 3, "nb_tsd": 0}, ),
+            indirect=True
+    )
+    def test_timeseries_csv_io_export_csv(self, timeseries_data):
+
+        ts_0_id, _, _, _ = timeseries_data[0]
+        ts_1_id, _, _, _ = timeseries_data[1]
+        ts_2_id, _, _, _ = timeseries_data[2]
+
+        start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+        for i in range(3):
+            timestamp = start_dt + dt.timedelta(hours=i)
+            db.session.add(
+                TimeseriesData(
+                    timestamp=timestamp,
+                    timeseries_id=ts_0_id,
+                    value=i
+                )
+            )
+            db.session.add(
+                TimeseriesData(
+                    timestamp=timestamp,
+                    timeseries_id=ts_2_id,
+                    value=i
+                )
+            )
+        for i in range(2):
+            timestamp = start_dt + dt.timedelta(hours=i)
+            db.session.add(
+                TimeseriesData(
+                    timestamp=timestamp,
+                    timeseries_id=ts_1_id,
+                    value=i
+                )
+            )
+        end_dt = start_dt + dt.timedelta(hours=3)
+        db.session.commit()
+
+        data = tscsvio.export_csv(start_dt, end_dt, (ts_0_id, ts_1_id))
+
+        assert data == (
+            f"Datetime,{ts_0_id},{ts_1_id}\n"
+            "2020-01-01 00:00:00,0.0,0.0\n"
+            "2020-01-01 01:00:00,1.0,1.0\n"
+            "2020-01-01 02:00:00,2.0,\n"
+        )

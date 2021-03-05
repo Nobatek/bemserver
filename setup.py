@@ -37,6 +37,7 @@ setup(
         "marshmallow>=3.10.0,<4.0",
         "marshmallow-sqlalchemy>=0.24.0",
         "flask_smorest>=0.29.0<0.30",
+        "pandas>=1.2.3",
     ],
     packages=find_packages(exclude=["tests*"]),
 )

@@ -29,7 +29,7 @@ def timeseries_data(request, app):
     param = request.param
 
     nb_ts = param.get("nb_ts", 1)
-    nb_tsd = param.get("nb_tds", 24 * 100)
+    nb_tsd = param.get("nb_tsd", 24 * 100)
 
     ts_l = []
 

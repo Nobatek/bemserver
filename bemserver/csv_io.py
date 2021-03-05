@@ -3,10 +3,12 @@ import io
 import csv
 
 import psycopg2
+from sqlalchemy.sql.expression import func
+import pandas as pd
 
-from .database import rc
+from .database import db, rc
 from .exceptions import TimeseriesCSVIOError
-from . import model
+from .model import Timeseries, TimeseriesData
 
 
 class TimeseriesCSVIO:
@@ -34,7 +36,7 @@ class TimeseriesCSVIO:
             raise TimeseriesCSVIOError('First column must be "Datetime"')
         try:
             ts_ids = [
-                model.Timeseries.query.get(col).id
+                Timeseries.query.get(col).id
                 for col in header[1:]
             ]
         except AttributeError as exc:
@@ -69,6 +71,36 @@ class TimeseriesCSVIO:
                 psycopg2.extras.execute_values(cur, query, datas)
             except psycopg2.Error as exc:
                 raise TimeseriesCSVIOError('Error writing to DB') from exc
+
+    @staticmethod
+    def export_csv(start_dt, end_dt, timeseries):
+        """Export timeseries data as CSV file
+
+        :param datetime start_dt: Time interval lower bound (tz-aware)
+        :param datetime end_dt: Time interval exclusive upper bound (tz-aware)
+
+        Returns csv as a string.
+        """
+        data = db.session.query(
+            func.timezone("UTC", TimeseriesData.timestamp),
+            TimeseriesData.timeseries_id,
+            TimeseriesData.value,
+        ).filter(
+            TimeseriesData.timeseries_id.in_(timeseries)
+        ).filter(
+            start_dt <= TimeseriesData.timestamp
+        ).filter(
+            TimeseriesData.timestamp < end_dt
+        ).all()
+
+        data_df = (
+            pd.DataFrame(data, columns=('Datetime', 'tsid', 'value'))
+            .set_index("Datetime")
+        )
+
+        data_df = data_df.pivot(columns='tsid', values='value')
+
+        return data_df.to_csv()
 
 
 tscsvio = TimeseriesCSVIO()
