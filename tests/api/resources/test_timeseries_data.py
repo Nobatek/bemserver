@@ -115,3 +115,35 @@ class TestTimeseriesDataApi:
             "2020-01-01 02:00:00,2.0,12.0\n"
             "2020-01-01 03:00:00,3.0,13.0\n"
         )
+
+    @pytest.mark.parametrize(
+            'timeseries_data',
+            ({"nb_ts": 1, "nb_tsd": 0}, ),
+            indirect=True
+    )
+    @pytest.mark.parametrize(
+        "csv_str",
+        (
+            "",
+            "Dummy,\n",
+            "Datetime,1324564",
+            "Datetime,1\n2020-01-01T00:00:00+00:00",
+            "Datetime,1\n2020-01-01T00:00:00+00:00,",
+            "Datetime,1\n2020-01-01T00:00:00+00:00,a",
+        )
+    )
+    def test_timeseries_data_post_error(self, app, timeseries_data, csv_str):
+
+        client = app.test_client()
+
+        ret = client.post(
+            TIMESERIES_URL,
+            data={
+                "csv_file": (io.BytesIO(csv_str.encode()), 'timeseries.csv')
+            }
+        )
+        assert ret.status_code == 422
+        assert ret.json == {
+            "code": 422,
+            "status": "Unprocessable Entity",
+        }

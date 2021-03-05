@@ -2,9 +2,11 @@
 import io
 
 from flask import Response
+from flask_smorest import abort
 
 from bemserver.api import Blueprint
 from bemserver.csv_io import tscsvio
+from bemserver.exceptions import TimeseriesCSVIOError
 
 from .schemas import (
     TimeseriesDataSchema,
@@ -48,4 +50,7 @@ def get_csv(args):
 def post_csv(files):
     csv_file = files['csv_file']
     with io.TextIOWrapper(csv_file) as csv_file_txt:
-        tscsvio.import_csv(csv_file_txt)
+        try:
+            tscsvio.import_csv(csv_file_txt)
+        except TimeseriesCSVIOError:
+            abort(422, "Invalid csv file content")
