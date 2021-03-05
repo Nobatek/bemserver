@@ -1,13 +1,16 @@
 """Timeseries resources"""
+import io
 
-from flask.views import MethodView
-from sqlalchemy.sql.expression import func
+from flask import Response
 
 from bemserver.api import Blueprint
-from bemserver.database import db
-from bemserver.model import TimeseriesData
+from bemserver.csv_io import tscsvio
 
-from .schemas import TimeseriesDataSchema, TimeseriesQueryArgsSchema
+from .schemas import (
+    TimeseriesDataSchema,
+    TimeseriesDataQueryArgsSchema,
+    TimeseriesCSVFileSchema,
+)
 
 
 blp = Blueprint(
@@ -18,22 +21,31 @@ blp = Blueprint(
 )
 
 
-@blp.route('/<int:timeseries_id>')
-class TimeseriesViews(MethodView):
+@blp.route('/', methods=('GET', ))
+@blp.arguments(TimeseriesDataQueryArgsSchema, location='query')
+@blp.response(200)
+def get_csv(args):
+    csv_str = tscsvio.export_csv(
+        args['start_time'],
+        args['end_time'],
+        args['timeseries']
+    )
 
-    @blp.arguments(TimeseriesQueryArgsSchema, location='query')
-    @blp.response(200, TimeseriesDataSchema(many=True))
-    def get(self, args, timeseries_id):
-        data = db.session.query(
-            func.timezone("UTC", TimeseriesData.timestamp).label("timestamp"),
-            TimeseriesData.value,
-        ).filter(
-            TimeseriesData.timeseries_id == timeseries_id
-        ).filter(
-            args["start_time"] <= TimeseriesData.timestamp
-        ).filter(
-            TimeseriesData.timestamp < args["end_time"]
-        ).order_by(
-            TimeseriesData.timestamp
-        ).all()
-        return data
+    response = Response(csv_str, mimetype='text/csv')
+    response.headers.set(
+        "Content-Disposition",
+        "attachment",
+        filename="timeseries.csv"
+    )
+    return response
+
+
+# TODO: document response
+# https://github.com/marshmallow-code/flask-smorest/issues/142
+@blp.route('/', methods=('POST', ))
+@blp.arguments(TimeseriesCSVFileSchema, location='files')
+@blp.response(201)
+def post_csv(files):
+    csv_file = files['csv_file']
+    with io.TextIOWrapper(csv_file) as csv_file_txt:
+        tscsvio.import_csv(csv_file_txt)
