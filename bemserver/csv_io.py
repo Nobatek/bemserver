@@ -95,8 +95,12 @@ class TimeseriesCSVIO:
             pd.DataFrame(data, columns=('Datetime', 'tsid', 'value'))
             .set_index("Datetime")
         )
-
         data_df = data_df.pivot(columns='tsid', values='value')
+
+        # Add missing columns, in query order
+        for idx, ts_id in enumerate(timeseries):
+            if ts_id not in data_df:
+                data_df.insert(idx, ts_id, None)
 
         return data_df.to_csv()
 

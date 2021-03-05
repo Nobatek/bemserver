@@ -74,7 +74,7 @@ class TestTimeseriesDataApi:
             "attachment; filename=timeseries.csv"
         )
         csv_str = ret.data.decode("utf-8")
-        assert csv_str == "Datetime\n"
+        assert csv_str == "Datetime,1,2\n"
 
         # Send data
         csv_str = (

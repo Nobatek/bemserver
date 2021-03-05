@@ -85,7 +85,7 @@ class TestTimeseriesCSVIO:
 
     @pytest.mark.parametrize(
             'timeseries_data',
-            ({"nb_ts": 3, "nb_tsd": 0}, ),
+            ({"nb_ts": 4, "nb_tsd": 0}, ),
             indirect=True
     )
     def test_timeseries_csv_io_export_csv(self, timeseries_data):
@@ -93,8 +93,12 @@ class TestTimeseriesCSVIO:
         ts_0_id, _, _, _ = timeseries_data[0]
         ts_1_id, _, _, _ = timeseries_data[1]
         ts_2_id, _, _, _ = timeseries_data[2]
+        ts_3_id, _, _, _ = timeseries_data[3]
 
         start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+        end_dt = start_dt + dt.timedelta(hours=3)
+
+        # Create DB data
         for i in range(3):
             timestamp = start_dt + dt.timedelta(hours=i)
             db.session.add(
@@ -104,30 +108,25 @@ class TestTimeseriesCSVIO:
                     value=i
                 )
             )
-            db.session.add(
-                TimeseriesData(
-                    timestamp=timestamp,
-                    timeseries_id=ts_2_id,
-                    value=i
-                )
-            )
         for i in range(2):
             timestamp = start_dt + dt.timedelta(hours=i)
             db.session.add(
                 TimeseriesData(
                     timestamp=timestamp,
-                    timeseries_id=ts_1_id,
-                    value=i
+                    timeseries_id=ts_3_id,
+                    value=10 + 2 * i
                 )
             )
-        end_dt = start_dt + dt.timedelta(hours=3)
         db.session.commit()
 
-        data = tscsvio.export_csv(start_dt, end_dt, (ts_0_id, ts_1_id))
+        # Export CSV
+        data = tscsvio.export_csv(
+            start_dt, end_dt, (ts_0_id, ts_1_id, ts_3_id)
+        )
 
         assert data == (
-            f"Datetime,{ts_0_id},{ts_1_id}\n"
-            "2020-01-01 00:00:00,0.0,0.0\n"
-            "2020-01-01 01:00:00,1.0,1.0\n"
-            "2020-01-01 02:00:00,2.0,\n"
+            f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
+            "2020-01-01 00:00:00,0.0,,10.0\n"
+            "2020-01-01 01:00:00,1.0,,12.0\n"
+            "2020-01-01 02:00:00,2.0,,\n"
         )
