@@ -4,7 +4,6 @@ import contextlib
 import sqlalchemy as sqla
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
-import psycopg2
 
 
 session_factory = sessionmaker(autocommit=False, autoflush=False)
@@ -12,7 +11,7 @@ db_session = scoped_session(session_factory)
 Base = declarative_base()
 
 
-class SQLAlchemyConnection:
+class DBConnection:
     def __init__(self):
         self.engine = None
 
@@ -45,39 +44,13 @@ class SQLAlchemyConnection:
     def drop_all(self):
         Base.metadata.drop_all(bind=self.engine)
 
-
-db = SQLAlchemyConnection()
-
-
-class RawConnection:
-    def __init__(self):
-        self._conn_params = None
-
-    def set_conn_params(self, user, password, host, port, database):
-        self._conn_params = {
-            "host": host,
-            "port": port,
-            "user": user,
-            "password": password,
-            "database": database,
-        }
-
-    def init_app(self, app):
-        self.set_conn_params(
-            host=app.config["DB_HOST"],
-            port=app.config["DB_PORT"],
-            user=app.config["DB_USER"],
-            password=app.config["DB_PWD"],
-            database=app.config["DB_DATABASE"],
-        )
-
     @contextlib.contextmanager
-    def connection(self):
-        conn = psycopg2.connect(**self._conn_params)
+    def raw_connection(self):
         try:
+            conn = self.session.bind.raw_connection()
             yield conn
         finally:
             conn.close()
 
 
-rc = RawConnection()
+db = DBConnection()

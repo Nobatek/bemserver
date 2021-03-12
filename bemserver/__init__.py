@@ -2,7 +2,7 @@
 import flask
 import click
 
-from .database import db, rc
+from .database import db
 from . import model
 from . import api
 
@@ -21,7 +21,6 @@ def create_app():
     app.config.from_envvar('FLASK_SETTINGS_FILE', silent=True)
 
     db.init_app(app)
-    rc.init_app(app)
     api.init_app(app)
 
     app.cli.add_command(setup_db)

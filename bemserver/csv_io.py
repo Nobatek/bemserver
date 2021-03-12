@@ -6,7 +6,7 @@ import psycopg2
 from sqlalchemy.sql.expression import func
 import pandas as pd
 
-from .database import db, rc
+from .database import db
 from .exceptions import TimeseriesCSVIOError
 from .model import Timeseries, TimeseriesData
 
@@ -58,7 +58,7 @@ class TimeseriesCSVIO:
             except IndexError as exc:
                 raise TimeseriesCSVIOError('Missing column') from exc
 
-        with rc.connection() as conn, conn.cursor() as cur:
+        with db.raw_connection() as conn, conn.cursor() as cur:
             try:
                 psycopg2.extras.execute_values(cur, query, datas)
                 conn.commit()
