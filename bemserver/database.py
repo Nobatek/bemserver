@@ -7,14 +7,18 @@ from sqlalchemy.ext.declarative import declarative_base
 import psycopg2
 
 
-session_factory = sessionmaker()
-Session = scoped_session(session_factory)
+session_factory = sessionmaker(autocommit=False, autoflush=False)
+db_session = scoped_session(session_factory)
 Base = declarative_base()
 
 
 class SQLAlchemyConnection:
     def __init__(self):
         self.engine = None
+
+    def set_engine(self, db_url):
+        self.engine = sqla.create_engine(db_url)
+        session_factory.configure(bind=self.engine)
 
     def init_app(self, app):
         db_url = sqla.engine.url.URL(
@@ -25,16 +29,15 @@ class SQLAlchemyConnection:
             port=app.config["DB_PORT"],
             database=app.config["DB_DATABASE"],
         )
-        self.engine = sqla.create_engine(db_url)
-        session_factory.configure(bind=self.engine)
+        self.set_engine(db_url)
 
         @app.teardown_appcontext
         def cleanup(_):
-            Session.remove()
+            db_session.remove()
 
     @property
     def session(self):
-        return Session
+        return db_session
 
     def create_all(self):
         Base.metadata.create_all(bind=self.engine)
@@ -50,18 +53,31 @@ class RawConnection:
     def __init__(self):
         self._conn_params = None
 
-    def init_app(self, app):
+    def set_conn_params(self, user, password, host, port, database):
         self._conn_params = {
-            "host": app.config["DB_HOST"],
-            "port": app.config["DB_PORT"],
-            "user": app.config["DB_USER"],
-            "password": app.config["DB_PWD"],
-            "database": app.config["DB_DATABASE"],
+            "host": host,
+            "port": port,
+            "user": user,
+            "password": password,
+            "database": database,
         }
+
+    def init_app(self, app):
+        self.set_conn_params(
+            host=app.config["DB_HOST"],
+            port=app.config["DB_PORT"],
+            user=app.config["DB_USER"],
+            password=app.config["DB_PWD"],
+            database=app.config["DB_DATABASE"],
+        )
 
     @contextlib.contextmanager
     def connection(self):
-        yield psycopg2.connect(**self._conn_params)
+        conn = psycopg2.connect(**self._conn_params)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
 
 rc = RawConnection()
