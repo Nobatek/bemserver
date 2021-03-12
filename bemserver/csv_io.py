@@ -34,7 +34,7 @@ class TimeseriesCSVIO:
             raise TimeseriesCSVIOError('First column must be "Datetime"')
         try:
             ts_ids = [
-                Timeseries.query.get(col).id
+                db.session.query(Timeseries).get(col).id
                 for col in header[1:]
             ]
         except AttributeError as exc:

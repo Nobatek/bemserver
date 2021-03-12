@@ -1,6 +1,7 @@
 """Timeseries resources"""
 
 from flask.views import MethodView
+from flask_smorest import abort
 
 from bemserver.api import Blueprint, SQLCursorPage
 from bemserver.database import db
@@ -26,7 +27,7 @@ class TimeseriesViews(MethodView):
     @blp.paginate(SQLCursorPage)
     def get(self, args):
         """List timeseries"""
-        return Timeseries.query.filter_by(**args)
+        return db.session.query(Timeseries).filter_by(**args)
 
     @blp.etag
     @blp.arguments(TimeseriesSchema)
@@ -46,14 +47,19 @@ class TimeseriesByIdViews(MethodView):
     @blp.response(200, TimeseriesSchema)
     def get(self, item_id):
         """Get timeseries by ID"""
-        return Timeseries.query.get_or_404(item_id)
+        item = db.session.query(Timeseries).get(item_id)
+        if item is None:
+            abort(404)
+        return item
 
     @blp.etag
     @blp.arguments(TimeseriesSchema)
     @blp.response(200, TimeseriesSchema)
     def put(self, new_item, item_id):
         """Update an existing timeseries"""
-        item = Timeseries.query.get_or_404(item_id)
+        item = db.session.query(Timeseries).get(item_id)
+        if item is None:
+            abort(404)
         blp.check_etag(item, TimeseriesSchema)
         TimeseriesSchema().update(item, new_item)
         db.session.add(item)
@@ -64,7 +70,9 @@ class TimeseriesByIdViews(MethodView):
     @blp.response(204)
     def delete(self, item_id):
         """Delete a timeseries"""
-        item = Timeseries.query.get_or_404(item_id)
+        item = db.session.query(Timeseries).get(item_id)
+        if item is None:
+            abort(404)
         blp.check_etag(item, TimeseriesSchema)
         db.session.delete(item)
         db.session.commit()

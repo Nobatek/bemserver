@@ -26,7 +26,7 @@ class TestTimeseriesCSVIO:
         ts_0_id, _, _, _ = timeseries_data[0]
         ts_1_id, _, _, _ = timeseries_data[1]
 
-        assert not TimeseriesData.query.all()
+        assert not db.session.query(TimeseriesData).all()
 
         csv_file = (
             f"Datetime,{ts_0_id},{ts_1_id}\n"
