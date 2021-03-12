@@ -33,7 +33,6 @@ setup(
         "python-dotenv>=0.9.0",
         "psycopg2>=2.8.0",
         "sqlalchemy>=1.3.0",
-        "flask-sqlalchemy>=2.4.0",
         "marshmallow>=3.10.0,<4.0",
         "marshmallow-sqlalchemy>=0.24.0",
         "flask_smorest>=0.29.0<0.30",
