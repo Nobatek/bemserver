@@ -23,9 +23,7 @@ class RawConnection:
 
     @contextlib.contextmanager
     def connection(self):
-        conn = psycopg2.connect(**self._conn_params)
-        yield conn
-        conn.commit()
+        yield psycopg2.connect(**self._conn_params)
 
 
 rc = RawConnection()

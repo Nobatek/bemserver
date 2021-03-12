@@ -47,26 +47,22 @@ class TimeseriesCSVIO:
             "ON CONFLICT DO NOTHING"
         )
 
-        with rc.connection() as conn:
-            cur = conn.cursor()
+        datas = []
+        for row in reader:
+            try:
+                timestamp = row[0]
+                datas.extend([
+                    (timestamp, ts_id, row[col+1])
+                    for col, ts_id in enumerate(ts_ids)
+                ])
+            except IndexError as exc:
+                raise TimeseriesCSVIOError('Missing column') from exc
 
-            datas = []
-
-            for row in reader:
-                try:
-                    timestamp = row[0]
-                    datas.extend([
-                        (
-                            timestamp,
-                            ts_id,
-                            row[col+1]
-                        )
-                        for col, ts_id in enumerate(ts_ids)
-                    ])
-                except IndexError as exc:
-                    raise TimeseriesCSVIOError('Missing column') from exc
+        with rc.connection() as conn, conn.cursor() as cur:
             try:
                 psycopg2.extras.execute_values(cur, query, datas)
+                conn.commit()
+            # TODO: filter server and client errors (constraint violation)
             except psycopg2.Error as exc:
                 raise TimeseriesCSVIOError('Error writing to DB') from exc
 

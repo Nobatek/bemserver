@@ -12,8 +12,8 @@ HYPERTABLES = {
 
 def create_hypertables():
     """Create Timescale hypertables"""
-    with rc.connection() as conn:
-        cur = conn.cursor()
+    with rc.connection() as conn, conn.cursor() as cur:
         for table, column in HYPERTABLES.items():
             query = f"SELECT create_hypertable('{table}', '{column}');"
             cur.execute(query)
+            conn.commit()
