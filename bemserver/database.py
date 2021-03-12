@@ -28,10 +28,6 @@ class SQLAlchemyConnection:
     def session(self):
         return Session
 
-    @property
-    def Model(self):
-        return Base
-
     def create_all(self):
         Base.metadata.create_all(bind=self.engine)
 

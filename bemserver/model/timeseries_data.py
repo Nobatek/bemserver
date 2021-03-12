@@ -1,10 +1,10 @@
 """Timeseries data"""
 import sqlalchemy as sqla
 
-from bemserver.database import db
+from bemserver.database import Base
 
 
-class TimeseriesData(db.Model):
+class TimeseriesData(Base):
     __tablename__ = "timeseries_data"
 
     timestamp = sqla.Column(sqla.DateTime(timezone=True), primary_key=True)

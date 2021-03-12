@@ -1,10 +1,10 @@
 """Timeseries"""
 import sqlalchemy as sqla
 
-from bemserver.database import db
+from bemserver.database import Base
 
 
-class Timeseries(db.Model):
+class Timeseries(Base):
     __tablename__ = "timeseries"
 
     id = sqla.Column(sqla.Integer, primary_key=True)
