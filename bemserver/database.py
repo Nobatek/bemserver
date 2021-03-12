@@ -1,7 +1,7 @@
 """Databases: SQLAlchemy database and raw connection"""
 import contextlib
 
-from sqlalchemy import create_engine
+import sqlalchemy as sqla
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 import psycopg2
@@ -17,7 +17,15 @@ class SQLAlchemyConnection:
         self.engine = None
 
     def init_app(self, app):
-        self.engine = create_engine(app.config["SQLALCHEMY_DATABASE_URI"])
+        db_url = sqla.engine.url.URL(
+            drivername="postgresql+psycopg2",
+            username=app.config["DB_USER"],
+            password=app.config["DB_PWD"],
+            host=app.config["DB_HOST"],
+            port=app.config["DB_PORT"],
+            database=app.config["DB_DATABASE"],
+        )
+        self.engine = sqla.create_engine(db_url)
         session_factory.configure(bind=self.engine)
 
         @app.teardown_appcontext

@@ -12,7 +12,6 @@ class Config:
     DB_DATABASE = "bemserver"
 
     # SQLAlchemy parameters
-    SQLALCHEMY_DATABASE_URI = ""
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # API parameters
