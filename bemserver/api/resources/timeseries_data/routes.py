@@ -8,11 +8,7 @@ from bemserver.api import Blueprint
 from bemserver.csv_io import tscsvio
 from bemserver.exceptions import TimeseriesCSVIOError
 
-from .schemas import (
-    TimeseriesDataSchema,
-    TimeseriesDataQueryArgsSchema,
-    TimeseriesCSVFileSchema,
-)
+from .schemas import TimeseriesDataQueryArgsSchema, TimeseriesCSVFileSchema
 
 
 blp = Blueprint(
