@@ -2,8 +2,9 @@
 import marshmallow as ma
 import marshmallow_sqlalchemy as msa
 
-from bemserver.api import Schema, AutoSchema
-from bemserver.model import Timeseries
+from bemserver.core.model import Timeseries
+
+from bemserver.app.api import Schema, AutoSchema
 
 
 class TimeseriesSchema(AutoSchema):

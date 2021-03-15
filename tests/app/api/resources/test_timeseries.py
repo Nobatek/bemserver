@@ -1,7 +1,4 @@
 """Timeseries tests"""
-# pylint: disable=invalid-name
-
-
 DUMMY_ID = '69'
 
 TIMESERIES_URL = '/timeseries/'

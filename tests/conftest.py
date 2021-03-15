@@ -1,30 +1,28 @@
+""" Global conftest"""
+import os
 import datetime as dt
 
 import pytest
 
 from dotenv import load_dotenv
-from bemserver import create_app
-from bemserver.database import db
-from bemserver import model
+
+from bemserver.core.database import db
+from bemserver.core import model
 
 
-# Load .env file (to load database parameters from development environment)
 load_dotenv('.env')
 
 
 @pytest.fixture
-def app():
-    application = create_app()
-    application.config['TESTING'] = True
-    with application.app_context():
-        db.drop_all()
-        db.create_all()
-        model.create_hypertables()
-        yield application
+def database():
+    db.set_db_url(os.getenv("TEST_SQLALCHEMY_DATABASE_URI"))
+    db.setup_tables()
+    yield db
+    db.session.remove()
 
 
 @pytest.fixture(params=[{}])
-def timeseries_data(request, app):
+def timeseries_data(request, database):
 
     param = request.param
 
@@ -33,31 +31,29 @@ def timeseries_data(request, app):
 
     ts_l = []
 
-    with app.app_context():
+    for i in range(nb_ts):
+        ts_i = model.Timeseries(
+            name=f"Timeseries {i}",
+            description=f"Test timeseries #{i}",
+        )
+        db.session.add(ts_i)
 
-        for i in range(nb_ts):
-            ts_i = model.Timeseries(
-                name=f"Timeseries {i}",
-                description=f"Test timeseries #{i}",
-            )
-            db.session.add(ts_i)
-
-            start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
-            for i in range(nb_tsd):
-                timestamp = start_dt + dt.timedelta(hours=i)
-                db.session.add(
-                    model.TimeseriesData(
-                        timestamp=timestamp,
-                        timeseries=ts_i,
-                        value=i
-                    )
+        start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+        for i in range(nb_tsd):
+            timestamp = start_dt + dt.timedelta(hours=i)
+            db.session.add(
+                model.TimeseriesData(
+                    timestamp=timestamp,
+                    timeseries=ts_i,
+                    value=i
                 )
+            )
 
-            ts_l.append(ts_i)
+        ts_l.append(ts_i)
 
-        db.session.commit()
+    db.session.commit()
 
-        return [
-            (ts.id, nb_tsd, start_dt, start_dt + dt.timedelta(hours=nb_tsd))
-            for ts in ts_l
-        ]
+    return [
+        (ts.id, nb_tsd, start_dt, start_dt + dt.timedelta(hours=nb_tsd))
+        for ts in ts_l
+    ]

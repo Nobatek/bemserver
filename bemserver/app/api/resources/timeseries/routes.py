@@ -3,9 +3,10 @@
 from flask.views import MethodView
 from flask_smorest import abort
 
-from bemserver.api import Blueprint, SQLCursorPage
-from bemserver.database import db
-from bemserver.model import Timeseries
+from bemserver.core.model import Timeseries
+
+from bemserver.app.api import Blueprint, SQLCursorPage
+from bemserver.app.database import db
 
 from .schemas import TimeseriesSchema, TimeseriesQueryArgsSchema
 

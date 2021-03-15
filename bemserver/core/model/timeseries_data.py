@@ -1,7 +1,7 @@
 """Timeseries data"""
 import sqlalchemy as sqla
 
-from bemserver.database import Base
+from bemserver.core.database import Base
 
 
 class TimeseriesData(Base):

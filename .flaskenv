@@ -1,1 +1,1 @@
-FLASK_APP=bemserver
+FLASK_APP=bemserver.app

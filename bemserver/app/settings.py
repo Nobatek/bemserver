@@ -4,14 +4,8 @@
 class Config:
     """Default configuration"""
 
-    # Database parameters
-    DB_HOST = "localhost"
-    DB_PORT = 5432
-    DB_USER = ""
-    DB_PWD = ""
-    DB_DATABASE = "bemserver"
-
     # SQLAlchemy parameters
+    SQLALCHEMY_DATABASE_URI = ""
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # API parameters

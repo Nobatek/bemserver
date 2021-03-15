@@ -7,10 +7,10 @@ import pytest
 
 from sqlalchemy.sql.expression import func
 
-from bemserver.model import TimeseriesData
-from bemserver.csv_io import tscsvio
-from bemserver.database import db
-from bemserver.exceptions import TimeseriesCSVIOError
+from bemserver.core.model import TimeseriesData
+from bemserver.core.csv_io import tscsvio
+from bemserver.core.database import db
+from bemserver.core.exceptions import TimeseriesCSVIOError
 
 
 class TestTimeseriesCSVIO:

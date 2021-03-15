@@ -2,8 +2,9 @@
 import marshmallow as ma
 from flask_smorest.fields import Upload
 
-from bemserver.api import Schema, AutoSchema
-from bemserver.model import TimeseriesData
+from bemserver.core.model import TimeseriesData
+
+from bemserver.app.api import Schema, AutoSchema
 
 
 class TimeseriesDataSchema(AutoSchema):

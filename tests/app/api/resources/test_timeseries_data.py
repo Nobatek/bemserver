@@ -1,5 +1,4 @@
 """Timeseries data tests"""
-# pylint: disable=invalid-name
 import io
 import datetime as dt
 
