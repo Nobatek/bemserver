@@ -91,6 +91,7 @@ class TimeseriesCSVIO:
             pd.DataFrame(data, columns=('Datetime', 'tsid', 'value'))
             .set_index("Datetime")
         )
+        data_df.index = pd.DatetimeIndex(data_df.index).tz_localize('UTC')
         data_df = data_df.pivot(columns='tsid', values='value')
 
         # Add missing columns, in query order
@@ -98,7 +99,9 @@ class TimeseriesCSVIO:
             if ts_id not in data_df:
                 data_df.insert(idx, ts_id, None)
 
-        return data_df.to_csv()
+        # Specify ISO 8601 manually
+        # https://github.com/pandas-dev/pandas/issues/27328
+        return data_df.to_csv(date_format='%Y-%m-%dT%H:%M:%S%z')
 
 
 tscsvio = TimeseriesCSVIO()
