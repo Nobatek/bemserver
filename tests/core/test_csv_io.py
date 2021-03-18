@@ -130,3 +130,51 @@ class TestTimeseriesCSVIO:
             "2020-01-01T01:00:00+0000,1.0,,12.0\n"
             "2020-01-01T02:00:00+0000,2.0,,\n"
         )
+
+    @pytest.mark.parametrize(
+            'timeseries_data',
+            ({"nb_ts": 4, "nb_tsd": 0}, ),
+            indirect=True
+    )
+    def test_timeseries_csv_io_export_csv_bucket(self, timeseries_data):
+
+        ts_0_id, _, _, _ = timeseries_data[0]
+        ts_1_id, _, _, _ = timeseries_data[1]
+        ts_2_id, _, _, _ = timeseries_data[2]
+        ts_3_id, _, _, _ = timeseries_data[3]
+
+        start_dt = dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+        end_dt = start_dt + dt.timedelta(hours=24*3)
+
+        # Create DB data
+        for i in range(24 * 3):
+            timestamp = start_dt + dt.timedelta(hours=i)
+            db.session.add(
+                TimeseriesData(
+                    timestamp=timestamp,
+                    timeseries_id=ts_0_id,
+                    value=i
+                )
+            )
+        for i in range(24 * 2):
+            timestamp = start_dt + dt.timedelta(hours=i)
+            db.session.add(
+                TimeseriesData(
+                    timestamp=timestamp,
+                    timeseries_id=ts_3_id,
+                    value=10 + 2 * i
+                )
+            )
+        db.session.commit()
+
+        # Export CSV
+        data = tscsvio.export_csv_bucket(
+            start_dt, end_dt, (ts_0_id, ts_1_id, ts_3_id), '1 day'
+        )
+
+        assert data == (
+            f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
+            "2020-01-01T00:00:00+0000,11.5,,33.0\n"
+            "2020-01-02T00:00:00+0000,35.5,,81.0\n"
+            "2020-01-03T00:00:00+0000,59.5,,\n"
+        )

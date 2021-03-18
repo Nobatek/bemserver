@@ -103,5 +103,48 @@ class TimeseriesCSVIO:
         # https://github.com/pandas-dev/pandas/issues/27328
         return data_df.to_csv(date_format='%Y-%m-%dT%H:%M:%S%z')
 
+    @staticmethod
+    def export_csv_bucket(start_dt, end_dt, timeseries, bucket_width):
+        """Bucket timeseries data and export as CSV file
+
+        :param datetime start_dt: Time interval lower bound (tz-aware)
+        :param datetime end_dt: Time interval exclusive upper bound (tz-aware)
+
+        Returns csv as a string.
+        """
+        query = (
+            "SELECT time_bucket(%s, timestamp) AT TIME ZONE 'UTC'"
+            "  AS bucket, timeseries_id, avg(value) "
+            "FROM timeseries_data "
+            "WHERE timeseries_id IN %s "
+            "  AND timestamp >= %s AND timestamp < %s "
+            "GROUP BY bucket, timeseries_id "
+            "ORDER BY bucket;"
+        )
+        params = (bucket_width, timeseries, start_dt, end_dt)
+
+        with db.raw_connection() as conn, conn.cursor() as cur:
+            try:
+                cur.execute(query, params)
+                data = cur.fetchall()
+            except psycopg2.Error as exc:
+                raise exc
+
+        data_df = (
+            pd.DataFrame(data, columns=('Datetime', 'tsid', 'value'))
+            .set_index("Datetime")
+        )
+        data_df.index = pd.DatetimeIndex(data_df.index).tz_localize('UTC')
+        data_df = data_df.pivot(columns='tsid', values='value')
+
+        # Add missing columns, in query order
+        for idx, ts_id in enumerate(timeseries):
+            if ts_id not in data_df:
+                data_df.insert(idx, ts_id, None)
+
+        # Specify ISO 8601 manually
+        # https://github.com/pandas-dev/pandas/issues/27328
+        return data_df.to_csv(date_format='%Y-%m-%dT%H:%M:%S%z')
+
 
 tscsvio = TimeseriesCSVIO()
