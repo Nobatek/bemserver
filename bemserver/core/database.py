@@ -51,6 +51,7 @@ class DBConnection:
             for table, column in self.hypertables:
                 query = f"SELECT create_hypertable('{table}', '{column}');"
                 cur.execute(query)
+            conn.commit()
 
     def setup_tables(self):
         """Recreate database tables"""
