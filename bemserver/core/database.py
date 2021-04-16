@@ -49,7 +49,12 @@ class DBConnection:
         """Create Timescale hypertables"""
         with self.raw_connection() as conn, conn.cursor() as cur:
             for table, column in self.hypertables:
-                query = f"SELECT create_hypertable('{table}', '{column}');"
+                query = (
+                    "SELECT create_hypertable("
+                    f"'{table}', '{column}', "
+                    "create_default_indexes => False"
+                    ");"
+                )
                 cur.execute(query)
             conn.commit()
 
