@@ -116,7 +116,7 @@ class TimeseriesCSVIO:
         :param datetime start_dt: Time interval lower bound (tz-aware)
         :param datetime end_dt: Time interval exclusive upper bound (tz-aware)
         :param list timeseries: List of timeseries IDs
-        :param str bucket_width: Bucket width as ISO8601 or PostgreSQL interval
+        :param str bucket_width: Bucket width (ISO 8601 or PostgreSQL interval)
         :param str timezone: IANA timezone
 
         Returns csv as a string.
