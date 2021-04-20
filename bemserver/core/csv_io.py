@@ -130,7 +130,7 @@ class TimeseriesCSVIO:
             "GROUP BY bucket, timeseries_id "
             "ORDER BY bucket;"
         )
-        params = (bucket_width, timezone, timeseries, start_dt, end_dt)
+        params = (bucket_width, timezone, tuple(timeseries), start_dt, end_dt)
 
         with db.raw_connection() as conn, conn.cursor() as cur:
             try:

@@ -169,7 +169,7 @@ class TestTimeseriesCSVIO:
 
         # Export CSV: UTC
         data = tscsvio.export_csv_bucket(
-            start_dt, end_dt, (ts_0_id, ts_1_id, ts_3_id), '1 day'
+            start_dt, end_dt, [ts_0_id, ts_1_id, ts_3_id], '1 day'
         )
         assert data == (
             f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
