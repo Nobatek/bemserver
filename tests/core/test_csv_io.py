@@ -167,14 +167,26 @@ class TestTimeseriesCSVIO:
             )
         db.session.commit()
 
-        # Export CSV
+        # Export CSV: UTC
         data = tscsvio.export_csv_bucket(
             start_dt, end_dt, (ts_0_id, ts_1_id, ts_3_id), '1 day'
         )
-
         assert data == (
             f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
             "2020-01-01T00:00:00+0000,11.5,,33.0\n"
             "2020-01-02T00:00:00+0000,35.5,,81.0\n"
             "2020-01-03T00:00:00+0000,59.5,,\n"
+        )
+
+        # Export CSV: local TZ
+        data = tscsvio.export_csv_bucket(
+            start_dt, end_dt, (ts_0_id, ts_1_id, ts_3_id), '1 day',
+            timezone="Europe/Paris",
+        )
+        assert data == (
+            f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
+            "2019-12-31T23:00:00+0000,11.0,,32.0\n"
+            "2020-01-01T23:00:00+0000,34.5,,79.0\n"
+            "2020-01-02T23:00:00+0000,58.5,,104.0\n"
+            "2020-01-03T23:00:00+0000,71.0,,\n"
         )

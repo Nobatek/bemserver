@@ -104,18 +104,25 @@ class TimeseriesCSVIO:
         return data_df.to_csv(date_format='%Y-%m-%dT%H:%M:%S%z')
 
     @staticmethod
-    def export_csv_bucket(start_dt, end_dt, timeseries, bucket_width):
+    def export_csv_bucket(
+        start_dt,
+        end_dt,
+        timeseries,
+        bucket_width,
+        timezone='UTC',
+    ):
         """Bucket timeseries data and export as CSV file
 
         :param datetime start_dt: Time interval lower bound (tz-aware)
         :param datetime end_dt: Time interval exclusive upper bound (tz-aware)
         :param list timeseries: List of timeseries IDs
         :param str bucket_width: Bucket width as ISO8601 or PostgreSQL interval
+        :param str timezone: IANA timezone
 
         Returns csv as a string.
         """
         query = (
-            "SELECT time_bucket(%s, timestamp) AT TIME ZONE 'UTC'"
+            "SELECT time_bucket(%s, timestamp AT TIME ZONE %s)"
             "  AS bucket, timeseries_id, avg(value) "
             "FROM timeseries_data "
             "WHERE timeseries_id IN %s "
@@ -123,7 +130,7 @@ class TimeseriesCSVIO:
             "GROUP BY bucket, timeseries_id "
             "ORDER BY bucket;"
         )
-        params = (bucket_width, timeseries, start_dt, end_dt)
+        params = (bucket_width, timezone, timeseries, start_dt, end_dt)
 
         with db.raw_connection() as conn, conn.cursor() as cur:
             try:
@@ -136,7 +143,11 @@ class TimeseriesCSVIO:
             pd.DataFrame(data, columns=('Datetime', 'tsid', 'value'))
             .set_index("Datetime")
         )
-        data_df.index = pd.DatetimeIndex(data_df.index).tz_localize('UTC')
+        data_df.index = (
+            pd.DatetimeIndex(data_df.index)
+            .tz_localize(timezone)
+            .tz_convert('UTC')
+        )
         data_df = data_df.pivot(columns='tsid', values='value')
 
         # Add missing columns, in query order
