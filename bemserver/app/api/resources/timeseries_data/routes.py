@@ -9,7 +9,11 @@ from bemserver.core.exceptions import TimeseriesCSVIOError
 
 from bemserver.app.api import Blueprint
 
-from .schemas import TimeseriesDataQueryArgsSchema, TimeseriesCSVFileSchema
+from .schemas import (
+    TimeseriesDataQueryArgsSchema,
+    TimeseriesDataAggregateQueryArgsSchema,
+    TimeseriesCSVFileSchema,
+)
 
 
 blp = Blueprint(
@@ -28,6 +32,27 @@ def get_csv(args):
         args['start_time'],
         args['end_time'],
         args['timeseries']
+    )
+
+    response = Response(csv_str, mimetype='text/csv')
+    response.headers.set(
+        "Content-Disposition",
+        "attachment",
+        filename="timeseries.csv"
+    )
+    return response
+
+
+@blp.route('/aggregate', methods=('GET', ))
+@blp.arguments(TimeseriesDataAggregateQueryArgsSchema, location='query')
+@blp.response(200)
+def get_aggregate_csv(args):
+    csv_str = tscsvio.export_csv_bucket(
+        args['start_time'],
+        args['end_time'],
+        args['timeseries'],
+        args['bucket_width'],
+        args['timezone'],
     )
 
     response = Response(csv_str, mimetype='text/csv')

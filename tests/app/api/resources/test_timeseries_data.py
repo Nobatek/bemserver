@@ -45,6 +45,65 @@ class TestTimeseriesDataApi:
 
     @pytest.mark.parametrize(
             'timeseries_data',
+            ({"nb_ts": 2, "nb_tsd": 48}, ),
+            indirect=True
+    )
+    def test_timeseries_data_get_aggregate(self, app, timeseries_data):
+
+        client = app.test_client()
+
+        ts_0_id, _, start_time, end_time = timeseries_data[0]
+        ts_1_id, _, _, _ = timeseries_data[1]
+
+        # UTC timezone
+        ret = client.get(
+            TIMESERIES_URL + "aggregate",
+            query_string={
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "timeseries": [ts_0_id, ts_1_id],
+                "bucket_width": "1 day",
+                "timezone": "UTC",
+            }
+        )
+        assert ret.status_code == 200
+        assert ret.headers['Content-Type'] == "text/csv; charset=utf-8"
+        assert ret.headers['Content-Disposition'] == (
+            "attachment; filename=timeseries.csv"
+        )
+        csv_str = ret.data.decode("utf-8")
+        assert csv_str == (
+            f"Datetime,{ts_0_id},{ts_1_id}\n"
+            "2020-01-01T00:00:00+0000,11.5,11.5\n"
+            "2020-01-02T00:00:00+0000,35.5,35.5\n"
+        )
+
+        # Local timezone
+        ret = client.get(
+            TIMESERIES_URL + "aggregate",
+            query_string={
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "timeseries": [ts_0_id, ts_1_id],
+                "bucket_width": "1 day",
+                "timezone": "Europe/Paris",
+            }
+        )
+        assert ret.status_code == 200
+        assert ret.headers['Content-Type'] == "text/csv; charset=utf-8"
+        assert ret.headers['Content-Disposition'] == (
+            "attachment; filename=timeseries.csv"
+        )
+        csv_str = ret.data.decode("utf-8")
+        assert csv_str == (
+            f"Datetime,{ts_0_id},{ts_1_id}\n"
+            "2019-12-31T23:00:00+0000,11.0,11.0\n"
+            "2020-01-01T23:00:00+0000,34.5,34.5\n"
+            "2020-01-02T23:00:00+0000,47.0,47.0\n"
+        )
+
+    @pytest.mark.parametrize(
+            'timeseries_data',
             ({"nb_ts": 2, "nb_tsd": 0}, ),
             indirect=True
     )
