@@ -8,7 +8,6 @@ from bemserver.app.api import Schema, AutoSchema
 from bemserver.app.api.extensions.ma_fields import Timezone
 
 
-
 class TimeseriesDataSchema(AutoSchema):
     class Meta:
         table = TimeseriesData.__table__

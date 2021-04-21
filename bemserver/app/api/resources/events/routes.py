@@ -137,7 +137,7 @@ def put_extend(item_id):
 @blp.response(201, EventSchema)
 def put_close(args, item_id):
     """Close an event
-    
+
     Mainly change the state of the event to `CLOSED` and update
     `timestamp_last_update`. Nothing is done if the event is already `CLOSED`.
     """
