@@ -238,70 +238,70 @@ class Event(Base):
 
 # TODO: maybe this is something the concerned service could fill
 @sqla.event.listens_for(EventCategory.__table__, "after_create")
-def _insert_initial_event_categories(target, connnection, **kwargs):
+def _insert_initial_event_categories(target, connection, **kwargs):
     # add default event categories
-    connnection.execute(
+    connection.execute(
         target.insert(), id="ABNORMAL_TIMESTAMPS",
         description="Abnormal timestamps in timeseries")
-    connnection.execute(
+    connection.execute(
         target.insert(), id="observation_missing",
         parent="ABNORMAL_TIMESTAMPS",
         description="Observation timestamp is missing")
-    connnection.execute(
+    connection.execute(
         target.insert(), id="observation_interval_too_large",
         parent="ABNORMAL_TIMESTAMPS", description=(
             "Observation timestamp interval is too large"
             " compared to the timeseries observation interval"))
-    connnection.execute(
+    connection.execute(
         target.insert(), id="observation_interval_too_short",
         parent="ABNORMAL_TIMESTAMPS", description=(
             "Observation timestamp interval is too short"
             " compared to the timeseries observation interval"))
-    connnection.execute(
+    connection.execute(
         target.insert(), id="reception_interval_too_large",
         parent="ABNORMAL_TIMESTAMPS", description=(
             "Reception timestamp interval is too large"
             " compared to the timeseries reception interval"))
-    connnection.execute(
+    connection.execute(
         target.insert(), id="reception_interval_too_short",
         parent="ABNORMAL_TIMESTAMPS", description=(
             "Reception timestamp interval is too short"
             " compared to the timeseries reception interval"))
-    connnection.execute(
+    connection.execute(
         target.insert(), id="ABNORMAL_MEASURE_VALUES",
         description="Abnormal measure values in timeseries")
-    connnection.execute(
+    connection.execute(
         target.insert(), id="out_of_range",
         parent="ABNORMAL_MEASURE_VALUES",
         description="Measure value is out of range")
 
 
 @sqla.event.listens_for(EventTarget.__table__, "after_create")
-def _insert_initial_event_targets(target, connnection, **kwargs):
+def _insert_initial_event_targets(target, connection, **kwargs):
     # add default event targets
-    connnection.execute(
+    connection.execute(
         target.insert(), id="TIMESERIES", description="Timeseries")
-    connnection.execute(target.insert(), id="SITE", description="Site")
-    connnection.execute(target.insert(), id="BUILDING", description="Building")
-    connnection.execute(target.insert(), id="FLOOR", description="Floor")
-    connnection.execute(target.insert(), id="SPACE", description="Space")
-    connnection.execute(target.insert(), id="SENSOR", description="Sensor")
+    connection.execute(target.insert(), id="SITE", description="Site")
+    connection.execute(target.insert(), id="BUILDING", description="Building")
+    connection.execute(target.insert(), id="FLOOR", description="Floor")
+    connection.execute(target.insert(), id="SPACE", description="Space")
+    connection.execute(target.insert(), id="SENSOR", description="Sensor")
 
 
 @sqla.event.listens_for(EventLevel.__table__, "after_create")
-def _insert_initial_event_levels(target, connnection, **kwargs):
+def _insert_initial_event_levels(target, connection, **kwargs):
     # add the 3 default event levels
-    connnection.execute(target.insert(), id="INFO", description="Information")
-    connnection.execute(target.insert(), id="WARNING", description="Warning")
-    connnection.execute(target.insert(), id="ERROR", description="Error")
-    connnection.execute(target.insert(), id="CRITICAL", description="Critical")
+    connection.execute(target.insert(), id="INFO", description="Information")
+    connection.execute(target.insert(), id="WARNING", description="Warning")
+    connection.execute(target.insert(), id="ERROR", description="Error")
+    connection.execute(target.insert(), id="CRITICAL", description="Critical")
 
 
 @sqla.event.listens_for(EventState.__table__, "after_create")
-def _insert_initial_event_states(target, connnection, **kwargs):
+def _insert_initial_event_states(target, connection, **kwargs):
     # add the 3 default event states
-    connnection.execute(target.insert(), id="NEW", description="New event")
-    connnection.execute(
+    connection.execute(target.insert(), id="NEW", description="New event")
+    connection.execute(
         target.insert(), id="ONGOING", description="Ongoing event")
-    connnection.execute(
+    connection.execute(
         target.insert(), id="CLOSED", description="Closed event")
