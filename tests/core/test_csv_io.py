@@ -167,7 +167,7 @@ class TestTimeseriesCSVIO:
             )
         db.session.commit()
 
-        # Export CSV: UTC
+        # Export CSV: UTC avg
         data = tscsvio.export_csv_bucket(
             start_dt, end_dt, [ts_0_id, ts_1_id, ts_3_id], "1 day"
         )
@@ -178,7 +178,7 @@ class TestTimeseriesCSVIO:
             "2020-01-03T00:00:00+0000,59.5,,\n"
         )
 
-        # Export CSV: local TZ
+        # Export CSV: local TZ avg
         data = tscsvio.export_csv_bucket(
             start_dt, end_dt, (ts_0_id, ts_1_id, ts_3_id), "P1D",
             timezone="Europe/Paris",
@@ -190,3 +190,46 @@ class TestTimeseriesCSVIO:
             "2020-01-02T23:00:00+0000,58.5,,104.0\n"
             "2020-01-03T23:00:00+0000,71.0,,\n"
         )
+
+        # Export CSV: UTC sum
+        data = tscsvio.export_csv_bucket(
+            start_dt, end_dt, [ts_0_id, ts_1_id, ts_3_id], "1 day",
+            aggregation="sum",
+        )
+        assert data == (
+            f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
+            "2020-01-01T00:00:00+0000,276.0,,792.0\n"
+            "2020-01-02T00:00:00+0000,852.0,,1944.0\n"
+            "2020-01-03T00:00:00+0000,1428.0,,\n"
+        )
+
+        # Export CSV: UTC min
+        data = tscsvio.export_csv_bucket(
+            start_dt, end_dt, [ts_0_id, ts_1_id, ts_3_id], "1 day",
+            aggregation="min",
+        )
+        assert data == (
+            f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
+            "2020-01-01T00:00:00+0000,0.0,,10.0\n"
+            "2020-01-02T00:00:00+0000,24.0,,58.0\n"
+            "2020-01-03T00:00:00+0000,48.0,,\n"
+        )
+
+        # Export CSV: UTC max
+        data = tscsvio.export_csv_bucket(
+            start_dt, end_dt, [ts_0_id, ts_1_id, ts_3_id], "1 day",
+            aggregation="max",
+        )
+        assert data == (
+            f"Datetime,{ts_0_id},{ts_1_id},{ts_3_id}\n"
+            "2020-01-01T00:00:00+0000,23.0,,56.0\n"
+            "2020-01-02T00:00:00+0000,47.0,,104.0\n"
+            "2020-01-03T00:00:00+0000,71.0,,\n"
+        )
+
+        # Export CSV: invalid aggregation
+        with pytest.raises(ValueError):
+            tscsvio.export_csv_bucket(
+                start_dt, end_dt, [ts_0_id, ts_1_id, ts_3_id], "1 day",
+                aggregation="lol",
+            )

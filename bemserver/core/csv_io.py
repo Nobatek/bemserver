@@ -11,6 +11,9 @@ from .exceptions import TimeseriesCSVIOError
 from .model import Timeseries, TimeseriesData
 
 
+AGGREGATION_FUNCTIONS = ("avg", "sum", "min", "max")
+
+
 class TimeseriesCSVIO:
 
     @staticmethod
@@ -109,7 +112,8 @@ class TimeseriesCSVIO:
         end_dt,
         timeseries,
         bucket_width,
-        timezone='UTC',
+        timezone="UTC",
+        aggregation="avg",
     ):
         """Bucket timeseries data and export as CSV file
 
@@ -118,12 +122,16 @@ class TimeseriesCSVIO:
         :param list timeseries: List of timeseries IDs
         :param str bucket_width: Bucket width (ISO 8601 or PostgreSQL interval)
         :param str timezone: IANA timezone
+        :param str aggreagation: Aggregation function. Must be one of
+            "avg", "sum", "min" and "max".
 
         Returns csv as a string.
         """
+        if aggregation not in AGGREGATION_FUNCTIONS:
+            raise ValueError(f'Invalid aggregation method "{aggregation}"')
         query = (
             "SELECT time_bucket(%s, timestamp AT TIME ZONE %s)"
-            "  AS bucket, timeseries_id, avg(value) "
+            f"  AS bucket, timeseries_id, {aggregation}(value) "
             "FROM timeseries_data "
             "WHERE timeseries_id IN %s "
             "  AND timestamp >= %s AND timestamp < %s "
