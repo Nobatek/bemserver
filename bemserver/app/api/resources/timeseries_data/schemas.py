@@ -3,6 +3,7 @@ import marshmallow as ma
 from flask_smorest.fields import Upload
 
 from bemserver.core.model import TimeseriesData
+from bemserver.core.csv_io import AGGREGATION_FUNCTIONS
 
 from bemserver.app.api import Schema, AutoSchema
 from bemserver.app.api.extensions.ma_fields import Timezone
@@ -42,6 +43,10 @@ class TimeseriesDataAggregateQueryArgsSchema(TimeseriesDataQueryArgsSchema):
     timezone = Timezone(
         missing="UTC",
         description='Timezone to use for the aggreagation',
+    )
+    aggregation = ma.fields.String(
+        missing="avg",
+        validate=ma.validate.OneOf(AGGREGATION_FUNCTIONS),
     )
 
 

@@ -53,6 +53,7 @@ def get_aggregate_csv(args):
         args['timeseries'],
         args['bucket_width'],
         args['timezone'],
+        args['aggregation'],
     )
 
     response = Response(csv_str, mimetype='text/csv')
