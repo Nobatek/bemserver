@@ -1,6 +1,4 @@
 """Databases: SQLAlchemy database access"""
-import contextlib
-
 import sqlalchemy as sqla
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 
@@ -24,15 +22,6 @@ class DBConnection:
     @property
     def session(self):
         return DB_SESSION
-
-    @contextlib.contextmanager
-    def raw_connection(self):
-        """Provide a direct connection to the database"""
-        try:
-            conn = self.session.bind.raw_connection()
-            yield conn
-        finally:
-            conn.close()
 
     def create_all(self):
         """Create all tables"""
