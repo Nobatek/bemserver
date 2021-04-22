@@ -241,67 +241,143 @@ class Event(Base):
 def _insert_initial_event_categories(target, connection, **kwargs):
     # add default event categories
     connection.execute(
-        target.insert(), id="ABNORMAL_TIMESTAMPS",
-        description="Abnormal timestamps in timeseries")
+        target.insert(),
+        {
+            "id": "ABNORMAL_TIMESTAMPS",
+            "description": "Abnormal timestamps in timeseries",
+        }
+    )
     connection.execute(
-        target.insert(), id="observation_missing",
-        parent="ABNORMAL_TIMESTAMPS",
-        description="Observation timestamp is missing")
+        target.insert(),
+        {
+            "id": "observation_missing",
+            "parent": "ABNORMAL_TIMESTAMPS",
+            "description": "Observation timestamp is missing",
+        }
+    )
     connection.execute(
-        target.insert(), id="observation_interval_too_large",
-        parent="ABNORMAL_TIMESTAMPS", description=(
-            "Observation timestamp interval is too large"
-            " compared to the timeseries observation interval"))
+        target.insert(),
+        {
+            "id": "observation_interval_too_large",
+            "parent": "ABNORMAL_TIMESTAMPS",
+            "description": (
+                "Observation timestamp interval is too large"
+                " compared to the timeseries observation interval"
+            ),
+        }
+    )
     connection.execute(
-        target.insert(), id="observation_interval_too_short",
-        parent="ABNORMAL_TIMESTAMPS", description=(
-            "Observation timestamp interval is too short"
-            " compared to the timeseries observation interval"))
+        target.insert(),
+        {
+            "id": "observation_interval_too_short",
+            "parent": "ABNORMAL_TIMESTAMPS",
+            "description": (
+                "Observation timestamp interval is too short"
+                " compared to the timeseries observation interval"
+            ),
+        }
+    )
     connection.execute(
-        target.insert(), id="reception_interval_too_large",
-        parent="ABNORMAL_TIMESTAMPS", description=(
-            "Reception timestamp interval is too large"
-            " compared to the timeseries reception interval"))
+        target.insert(),
+        {
+            "id": "reception_interval_too_large",
+            "parent": "ABNORMAL_TIMESTAMPS",
+            "description": (
+                "Reception timestamp interval is too large"
+                " compared to the timeseries reception interval"
+            ),
+        }
+    )
     connection.execute(
-        target.insert(), id="reception_interval_too_short",
-        parent="ABNORMAL_TIMESTAMPS", description=(
-            "Reception timestamp interval is too short"
-            " compared to the timeseries reception interval"))
+        target.insert(),
+        {
+            "id": "reception_interval_too_short",
+            "parent": "ABNORMAL_TIMESTAMPS",
+            "description": (
+                "Reception timestamp interval is too short"
+                " compared to the timeseries reception interval"
+            ),
+        }
+    )
     connection.execute(
-        target.insert(), id="ABNORMAL_MEASURE_VALUES",
-        description="Abnormal measure values in timeseries")
+        target.insert(),
+        {
+            "id": "ABNORMAL_MEASURE_VALUES",
+            "description": "Abnormal measure values in timeseries",
+        }
+    )
     connection.execute(
-        target.insert(), id="out_of_range",
-        parent="ABNORMAL_MEASURE_VALUES",
-        description="Measure value is out of range")
+        target.insert(),
+        {
+            "id": "out_of_range",
+            "parent": "ABNORMAL_MEASURE_VALUES",
+            "description": "Measure value is out of range",
+        }
+    )
 
 
 @sqla.event.listens_for(EventTarget.__table__, "after_create")
 def _insert_initial_event_targets(target, connection, **kwargs):
     # add default event targets
     connection.execute(
-        target.insert(), id="TIMESERIES", description="Timeseries")
-    connection.execute(target.insert(), id="SITE", description="Site")
-    connection.execute(target.insert(), id="BUILDING", description="Building")
-    connection.execute(target.insert(), id="FLOOR", description="Floor")
-    connection.execute(target.insert(), id="SPACE", description="Space")
-    connection.execute(target.insert(), id="SENSOR", description="Sensor")
+        target.insert(),
+        {"id": "TIMESERIES", "description": "Timeseries"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "SITE", "description": "Site"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "BUILDING", "description": "Building"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "FLOOR", "description": "Floor"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "SPACE", "description": "Space"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "SENSOR", "description": "Sensor"}
+    )
 
 
 @sqla.event.listens_for(EventLevel.__table__, "after_create")
 def _insert_initial_event_levels(target, connection, **kwargs):
     # add the 3 default event levels
-    connection.execute(target.insert(), id="INFO", description="Information")
-    connection.execute(target.insert(), id="WARNING", description="Warning")
-    connection.execute(target.insert(), id="ERROR", description="Error")
-    connection.execute(target.insert(), id="CRITICAL", description="Critical")
+    connection.execute(
+        target.insert(),
+        {"id": "INFO", "description": "Information"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "WARNING", "description": "Warning"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "ERROR", "description": "Error"}
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "CRITICAL", "description": "Critical"}
+    )
 
 
 @sqla.event.listens_for(EventState.__table__, "after_create")
 def _insert_initial_event_states(target, connection, **kwargs):
     # add the 3 default event states
-    connection.execute(target.insert(), id="NEW", description="New event")
     connection.execute(
-        target.insert(), id="ONGOING", description="Ongoing event")
+        target.insert(),
+        {"id": "NEW", "description": "New event"},
+    )
     connection.execute(
-        target.insert(), id="CLOSED", description="Closed event")
+        target.insert(),
+        {"id": "ONGOING", "description": "Ongoing event"},
+    )
+    connection.execute(
+        target.insert(),
+        {"id": "CLOSED", "description": "Closed event"},
+    )

@@ -3,7 +3,7 @@ import io
 import csv
 
 import psycopg2
-from sqlalchemy.sql.expression import func
+import sqlalchemy as sqla
 import pandas as pd
 
 from .database import db
@@ -37,7 +37,7 @@ class TimeseriesCSVIO:
             raise TimeseriesCSVIOError('First column must be "Datetime"')
         try:
             ts_ids = [
-                db.session.query(Timeseries).get(col).id
+                db.session.get(Timeseries, col).id
                 for col in header[1:]
             ]
         except AttributeError as exc:
@@ -78,16 +78,18 @@ class TimeseriesCSVIO:
 
         Returns csv as a string.
         """
-        data = db.session.query(
-            func.timezone("UTC", TimeseriesData.timestamp),
-            TimeseriesData.timeseries_id,
-            TimeseriesData.value,
-        ).filter(
-            TimeseriesData.timeseries_id.in_(timeseries)
-        ).filter(
-            start_dt <= TimeseriesData.timestamp
-        ).filter(
-            TimeseriesData.timestamp < end_dt
+        data = db.session.execute(
+            sqla.select(
+                sqla.func.timezone("UTC", TimeseriesData.timestamp),
+                TimeseriesData.timeseries_id,
+                TimeseriesData.value,
+            ).filter(
+                TimeseriesData.timeseries_id.in_(timeseries)
+            ).filter(
+                start_dt <= TimeseriesData.timestamp
+            ).filter(
+                TimeseriesData.timestamp < end_dt
+            )
         ).all()
 
         data_df = (

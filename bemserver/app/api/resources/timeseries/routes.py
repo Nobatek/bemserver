@@ -48,7 +48,7 @@ class TimeseriesByIdViews(MethodView):
     @blp.response(200, TimeseriesSchema)
     def get(self, item_id):
         """Get timeseries by ID"""
-        item = db.session.query(Timeseries).get(item_id)
+        item = db.session.get(Timeseries, item_id)
         if item is None:
             abort(404)
         return item
@@ -58,7 +58,7 @@ class TimeseriesByIdViews(MethodView):
     @blp.response(200, TimeseriesSchema)
     def put(self, new_item, item_id):
         """Update an existing timeseries"""
-        item = db.session.query(Timeseries).get(item_id)
+        item = db.session.get(Timeseries, item_id)
         if item is None:
             abort(404)
         blp.check_etag(item, TimeseriesSchema)
@@ -71,7 +71,7 @@ class TimeseriesByIdViews(MethodView):
     @blp.response(204)
     def delete(self, item_id):
         """Delete a timeseries"""
-        item = db.session.query(Timeseries).get(item_id)
+        item = db.session.get(Timeseries, item_id)
         if item is None:
             abort(404)
         blp.check_etag(item, TimeseriesSchema)

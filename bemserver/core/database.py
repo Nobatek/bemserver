@@ -2,8 +2,7 @@
 import contextlib
 
 import sqlalchemy as sqla
-from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 
 
 SESSION_FACTORY = sessionmaker(autocommit=False, autoflush=False)
