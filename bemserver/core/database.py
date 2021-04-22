@@ -20,7 +20,7 @@ class DBConnection:
 
     def set_db_url(self, db_url):
         """Set DB URL"""
-        self.engine = sqla.create_engine(db_url)
+        self.engine = sqla.create_engine(db_url, future=True)
         SESSION_FACTORY.configure(bind=self.engine)
 
     @property
