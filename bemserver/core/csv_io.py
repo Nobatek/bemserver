@@ -43,31 +43,33 @@ class TimeseriesCSVIO:
         except AttributeError as exc:
             raise TimeseriesCSVIOError('Unknown timeseries ID') from exc
 
-        query = (
-            "INSERT INTO timeseries_data "
-            "(timestamp, timeseries_id, value) "
-            "VALUES %s "
-            "ON CONFLICT DO NOTHING"
-        )
-
         datas = []
         for row in reader:
             try:
-                timestamp = row[0]
                 datas.extend([
-                    (timestamp, ts_id, row[col+1])
+                    {
+                        "timestamp": row[0],
+                        "timeseries_id": ts_id,
+                        "value": row[col+1]
+                    }
                     for col, ts_id in enumerate(ts_ids)
                 ])
             except IndexError as exc:
                 raise TimeseriesCSVIOError('Missing column') from exc
 
-        with db.raw_connection() as conn, conn.cursor() as cur:
-            try:
-                psycopg2.extras.execute_values(cur, query, datas)
-                conn.commit()
-            # TODO: filter server and client errors (constraint violation)
-            except psycopg2.Error as exc:
-                raise TimeseriesCSVIOError('Error writing to DB') from exc
+        query = (
+            sqla.dialects.postgresql
+            .insert(TimeseriesData).values(datas)
+            .on_conflict_do_nothing()
+        )
+
+        try:
+            with db.session() as session:
+                session.execute(query)
+                session.commit()
+        # TODO: filter server and client errors (constraint violation)
+        except sqla.exc.DBAPIError as exc:
+            raise TimeseriesCSVIOError('Error writing to DB') from exc
 
     @staticmethod
     def export_csv(start_dt, end_dt, timeseries):
