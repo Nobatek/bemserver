@@ -15,8 +15,6 @@ class DBConnection:
 
     def __init__(self):
         self.engine = None
-        # List of (table, time column) tuples to create hypertables on
-        self.hypertables = []
 
     def set_db_url(self, db_url):
         """Set DB URL"""
@@ -44,24 +42,10 @@ class DBConnection:
         """Drop all tables"""
         Base.metadata.drop_all(bind=self.engine)
 
-    def create_hypertables(self):
-        """Create Timescale hypertables"""
-        with self.raw_connection() as conn, conn.cursor() as cur:
-            for table, column in self.hypertables:
-                query = (
-                    "SELECT create_hypertable("
-                    f"'{table}', '{column}', "
-                    "create_default_indexes => False"
-                    ");"
-                )
-                cur.execute(query)
-            conn.commit()
-
     def setup_tables(self):
         """Recreate database tables"""
         self.drop_all()
         self.create_all()
-        self.create_hypertables()
 
 
 db = DBConnection()

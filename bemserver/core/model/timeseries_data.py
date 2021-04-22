@@ -20,3 +20,16 @@ class TimeseriesData(Base):
     )
     timeseries = sqla.orm.relationship('Timeseries')
     value = sqla.Column(sqla.Float)
+
+
+sqla.event.listen(
+    TimeseriesData.__table__,
+    "after_create",
+    sqla.DDL(
+        "SELECT create_hypertable("
+        "  '%(table)s',"
+        "  'timestamp',"
+        "  create_default_indexes => False"
+        ");"
+    )
+)
