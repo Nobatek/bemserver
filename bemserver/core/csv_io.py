@@ -2,7 +2,6 @@
 import io
 import csv
 
-import psycopg2
 import sqlalchemy as sqla
 import pandas as pd
 
@@ -133,23 +132,26 @@ class TimeseriesCSVIO:
         """
         if aggregation not in AGGREGATION_FUNCTIONS:
             raise ValueError(f'Invalid aggregation method "{aggregation}"')
-        query = (
-            "SELECT time_bucket(%s, timestamp AT TIME ZONE %s)"
+
+        query = sqla.text(
+            "SELECT time_bucket("
+            " :bucket_width, timestamp AT TIME ZONE :timezone)"
             f"  AS bucket, timeseries_id, {aggregation}(value) "
             "FROM timeseries_data "
-            "WHERE timeseries_id IN %s "
-            "  AND timestamp >= %s AND timestamp < %s "
+            "WHERE timeseries_id IN :timeseries "
+            "  AND timestamp >= :start_dt AND timestamp < :end_dt "
             "GROUP BY bucket, timeseries_id "
             "ORDER BY bucket;"
         )
-        params = (bucket_width, timezone, tuple(timeseries), start_dt, end_dt)
-
-        with db.raw_connection() as conn, conn.cursor() as cur:
-            try:
-                cur.execute(query, params)
-                data = cur.fetchall()
-            except psycopg2.Error as exc:
-                raise exc
+        params = {
+            "bucket_width": bucket_width,
+            "timezone": timezone,
+            "timeseries": tuple(timeseries),
+            "start_dt": start_dt,
+            "end_dt": end_dt,
+        }
+        with db.session() as session:
+            data = session.execute(query, params)
 
         data_df = (
             pd.DataFrame(data, columns=('Datetime', 'tsid', 'value'))
