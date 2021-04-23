@@ -28,6 +28,7 @@ blp = Blueprint(
 @blp.arguments(TimeseriesDataQueryArgsSchema, location='query')
 @blp.response(200)
 def get_csv(args):
+    """Get timeseries data as CSV file"""
     csv_str = tscsvio.export_csv(
         args['start_time'],
         args['end_time'],
@@ -47,6 +48,7 @@ def get_csv(args):
 @blp.arguments(TimeseriesDataAggregateQueryArgsSchema, location='query')
 @blp.response(200)
 def get_aggregate_csv(args):
+    """Get aggregated timeseries data as CSV file"""
     csv_str = tscsvio.export_csv_bucket(
         args['start_time'],
         args['end_time'],
@@ -71,6 +73,7 @@ def get_aggregate_csv(args):
 @blp.arguments(TimeseriesCSVFileSchema, location='files')
 @blp.response(201)
 def post_csv(files):
+    """Post timeseries data as CSV file"""
     csv_file = files['csv_file']
     with io.TextIOWrapper(csv_file) as csv_file_txt:
         try:
