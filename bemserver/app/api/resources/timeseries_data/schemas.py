@@ -19,16 +19,22 @@ class TimeseriesDataQueryArgsSchema(Schema):
 
     start_time = ma.fields.AwareDateTime(
         required=True,
-        description='Initial datetime',
+        metadata={
+            "description": "Initial datetime",
+        }
     )
     end_time = ma.fields.AwareDateTime(
         required=True,
-        description='End datetime (excluded from the interval)',
+        metadata={
+            "description": "End datetime (excluded from the interval)",
+        }
     )
     timeseries = ma.fields.List(
         ma.fields.Int(),
         required=True,
-        description='List of timeseries ID',
+        metadata={
+            "description": "List of timeseries ID",
+        }
     )
 
 
@@ -38,11 +44,15 @@ class TimeseriesDataAggregateQueryArgsSchema(TimeseriesDataQueryArgsSchema):
     # TODO: Create custom field for bucket width
     bucket_width = ma.fields.String(
         required=True,
-        description="Bucket width (ISO 8601 duration or PostgreSQL)",
+        metadata={
+            "description": "Bucket width (ISO 8601 duration or PostgreSQL)",
+        }
     )
     timezone = Timezone(
         missing="UTC",
-        description='Timezone to use for the aggreagation',
+        metadata={
+            "description": "Timezone to use for the aggreagation",
+        }
     )
     aggregation = ma.fields.String(
         missing="avg",
