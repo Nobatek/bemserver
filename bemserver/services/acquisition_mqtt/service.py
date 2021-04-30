@@ -1,0 +1,63 @@
+"""MQTT service"""
+
+from pathlib import Path
+
+from bemserver.core.database import db
+from bemserver.services.acquisition_mqtt.model import Subscriber
+from bemserver.services.acquisition_mqtt.exceptions import ServiceError
+
+
+# TODO: logging
+
+
+MQTT_CLIENT_ID = "bemserver-acquisition"
+
+
+class Service:
+
+    def __init__(self, working_dirpath):
+        self._tls_cert_dirpath = Path(working_dirpath)
+        self._running_subscribers = []
+        self.is_running = False
+
+    def set_db_url(self, db_url):
+        """Set database URL."""
+        if (db.engine is None
+                or db.engine is not None and str(db.engine.url) != db_url):
+            db.set_db_url(db_url)
+
+    def run(self, *, client_id=MQTT_CLIENT_ID):
+        """Run the MQTT acquisition servive:
+            - get all enabled subsribers
+            - connect each subscriber to its broker to get messages
+
+        :param str client_id: (optional, default "bemserver-acquisition")
+            Client ID to use, especially when using a persistent session.
+        :raises ServiceError: When no enabled subscriber is available.
+        """
+        rows = Subscriber.get_list(is_enabled=True)
+        if len(rows) <= 0:
+            raise ServiceError(
+                "No subscribers available to run MQTT acquisition!")
+
+        for row in rows:
+            subscriber = row[0]
+            # Set certificate file path if broker uses TLS.
+            if subscriber.broker.use_tls:
+                subscriber.broker.tls_certificate_dirpath = (
+                    self._tls_cert_dirpath)
+            # Connect subscriber.
+            subscriber.connect(client_id)
+            self._running_subscribers.append(subscriber)
+
+        self.is_running = True
+
+    def stop(self):
+        """Stop the MQTT acquisition service.
+
+        Each enabled subscriber is disconnected.
+        """
+        while len(self._running_subscribers) > 0:
+            self._running_subscribers[0].disconnect()
+            del self._running_subscribers[0]
+        self.is_running = False

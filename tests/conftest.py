@@ -14,8 +14,13 @@ load_dotenv('.env')
 
 
 @pytest.fixture
-def database():
-    db.set_db_url(os.getenv("TEST_SQLALCHEMY_DATABASE_URI"))
+def db_url():
+    return os.getenv("TEST_SQLALCHEMY_DATABASE_URI")
+
+
+@pytest.fixture
+def database(db_url):
+    db.set_db_url(db_url)
     db.setup_tables()
     yield db
     db.session.remove()
