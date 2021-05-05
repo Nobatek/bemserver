@@ -149,9 +149,12 @@ class TestSubscriberModel:
         assert topic.is_enabled
 
         # No timeseries data yet.
-        stmt = sqla.select(TimeseriesData).filter(
-            TimeseriesData.timeseries_id == topic.timeseries_id
-        ).order_by(
+        stmt = sqla.select(TimeseriesData)
+        for topic_link in topic.links:
+            stmt = stmt.filter(
+                TimeseriesData.timeseries_id == topic_link.timeseries_id
+            )
+        stmt = stmt.order_by(
             TimeseriesData.timestamp
         )
         rows = db.session.execute(stmt).all()
@@ -188,7 +191,6 @@ class TestSubscriberModel:
                 topic=topic.name, payload=json.dumps(payload), qos=1,
                 retain=True)
             msg_info.wait_for_publish()
-            # time.sleep(0.5)
 
         # Reconnect and resubscribe.
         subscriber.connect()
@@ -262,9 +264,12 @@ class TestSubscriberModel:
         assert topic.is_enabled
 
         # No timeseries data yet.
-        stmt = sqla.select(TimeseriesData).filter(
-            TimeseriesData.timeseries_id == topic.timeseries_id
-        ).order_by(
+        stmt = sqla.select(TimeseriesData)
+        for topic_link in topic.links:
+            stmt = stmt.filter(
+                TimeseriesData.timeseries_id == topic_link.timeseries_id
+            )
+        stmt = stmt.order_by(
             TimeseriesData.timestamp
         )
         rows = db.session.execute(stmt).all()

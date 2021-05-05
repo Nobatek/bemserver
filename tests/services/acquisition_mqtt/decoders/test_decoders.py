@@ -1,4 +1,4 @@
-"""Payload decoders tests"""
+"""Decoders tests"""
 
 import pytest
 import json
@@ -10,93 +10,169 @@ from bemserver.core.database import db
 from bemserver.core.model import TimeseriesData
 from bemserver.services.acquisition_mqtt import decoders
 from bemserver.services.acquisition_mqtt.exceptions import (
-    PayloadDecoderError, PayloadDecoderNotFoundError)
+    PayloadDecoderNotFoundError)
 
-from tests.services.acquisition_mqtt.conftest import PayloadDecoderCustom
+from tests.services.acquisition_mqtt.conftest import (
+    PayloadDecoderMosquittoUptime)
 
 
-class TestPayloadDecoders:
+class TestDecoders:
 
-    def test_payload_decoder_is_registered(self):
+    def test_decoder_get_cls(self):
 
-        assert not decoders.is_payload_decoder_registered("inexistant_decoder")
-        assert decoders.is_payload_decoder_registered(
-            decoders.PayloadDecoderBEMServer.name)
-
-    def test_payload_decoder_get_cls(self):
-
-        payload_decoder_cls = decoders.get_payload_decoder(
+        payload_decoder_cls = decoders.get_payload_decoder_cls(
             decoders.PayloadDecoderBEMServer.name)
         assert payload_decoder_cls == decoders.PayloadDecoderBEMServer
 
         with pytest.raises(PayloadDecoderNotFoundError):
-            decoders.get_payload_decoder("inexistant_decoder")
+            decoders.get_payload_decoder_cls(
+                PayloadDecoderMosquittoUptime.name)
 
-    def test_payload_decoder_register(self):
+    def test_decoder_mosquitto_uptime_decode(
+            self, mosquitto_topic, decoder_mosquitto_uptime):
 
-        with pytest.raises(PayloadDecoderNotFoundError):
-            decoders.get_payload_decoder(PayloadDecoderCustom.name)
+        mosquitto_uptime_decoder_cls, _ = decoder_mosquitto_uptime
 
-        decoders.register_payload_decoder(PayloadDecoderCustom)
+        mosquitto_decoder = mosquitto_uptime_decoder_cls(mosquitto_topic)
+        assert mosquitto_decoder.fields == ["uptime"]
 
-        payload_decoder_cls = decoders.get_payload_decoder(
-            PayloadDecoderCustom.name)
-        assert payload_decoder_cls == PayloadDecoderCustom
+        ts_before_decode = dt.datetime.now(dt.timezone.utc)
+        payload_to_decode = bytes("754369 seconds", "utf-8")
+        timestamp, values = mosquitto_decoder._decode(payload_to_decode)
+        ts_after_decode = dt.datetime.now(dt.timezone.utc)
+        assert ts_before_decode < timestamp < ts_after_decode
+        assert values["uptime"] == 754369
 
-        with pytest.raises(PayloadDecoderError):
-            decoders.register_payload_decoder(TimeseriesData)
+    def test_decoder_mosquitto_uptime_on_message(
+            self, database, mosquitto_topic, decoder_mosquitto_uptime):
 
-    def test_payload_decoder_topic_decoder_mismatch(
-            self, database, topic, decoder_custom_cls):
+        # At first there is no timeseries data.
+        stmt = sqla.select(TimeseriesData)
+        for topic_link in mosquitto_topic.links:
+            stmt = stmt.filter(
+                TimeseriesData.timeseries_id == topic_link.timeseries_id
+            )
+        stmt = stmt.order_by(
+            TimeseriesData.timestamp
+        )
+        tsdatas = db.session.execute(stmt).all()
+        assert len(tsdatas) == 0
 
-        assert topic.payload_decoder != decoder_custom_cls.name
-        with pytest.raises(PayloadDecoderError):
-            PayloadDecoderCustom(topic)
+        ts_before_message = dt.datetime.now(dt.timezone.utc)
 
-    def test_payload_decoder_decode(self, topic, decoder_custom_cls):
+        # Connect a subscriber to receive messages.
+        mosquitto_topic.subscriber.connect()
+        time.sleep(0.2)
+        assert mosquitto_topic.subscriber._client.is_connected()
+        mosquitto_topic.subscriber.subscribe_all()
+        time.sleep(0.5)
+        mosquitto_topic.subscriber.disconnect()
 
-        bemserver_decoder_cls = decoders.get_payload_decoder("bemserver")
-        bemserver_decoder = bemserver_decoder_cls(topic)
+        ts_after_message = dt.datetime.now(dt.timezone.utc)
+        ts_last_recept = (
+            mosquitto_topic.payload_decoder_instance.timestamp_last_reception)
+        assert ts_before_message < ts_last_recept < ts_after_message
+
+        # A retained message has been received and stored as timeseries in DB.
+        tsdatas = db.session.execute(stmt).all()
+        assert len(tsdatas) >= 1
+        tsdata = tsdatas[0][0]
+
+        assert tsdata.timeseries_id in [
+            x.timeseries_id for x in mosquitto_topic.links]
+
+    def test_decoder_bemserver_decode(self):
+
+        bemserver_decoder = decoders.PayloadDecoderBEMServer(None)
+        assert bemserver_decoder.fields == ["value"]
+
         ts_now = dt.datetime.now(dt.timezone.utc)
         payload_to_decode = {
             "ts": ts_now.isoformat(),
             "value": 66.6,
         }
-        ts, value = bemserver_decoder._decode(json.dumps(payload_to_decode))
+        ts, values = bemserver_decoder._decode(json.dumps(payload_to_decode))
         assert ts == ts_now
-        assert value == payload_to_decode["value"]
+        assert values["value"] == payload_to_decode["value"]
 
-        topic.payload_decoder = decoder_custom_cls.name
-        custom_decoder = decoder_custom_cls(topic)
-        ts_before_decode = dt.datetime.now(dt.timezone.utc)
-        payload_to_decode = bytes("754369 seconds", "utf-8")
-        timestamp, value = custom_decoder._decode(payload_to_decode)
-        ts_after_decode = dt.datetime.now(dt.timezone.utc)
-        assert ts_before_decode < timestamp < ts_after_decode
-        assert value == 754369
+    def test_decoder_chirpstack_decode(self):
 
-    def test_payload_decoder_on_message(self, database, topic, publisher):
+        timestamp = dt.datetime(
+            2021, 5, 3, 17, 28, 55, 41898, tzinfo=dt.timezone.utc)
 
-        # At first there is no timeseries data.
-        stmt = sqla.select(TimeseriesData).filter(
-            TimeseriesData.timeseries_id == topic.timeseries_id
-        )
-        tsdatas = db.session.execute(stmt).all()
-        assert len(tsdatas) == 0
+        chirpstack_decoder = decoders.PayloadDecoderChirpstackARF8200AA(None)
+        assert chirpstack_decoder.fields == ["channelA", "channelB"]
+        payload_to_decode = {
+            "rxInfo": [
+                {
+                    "time": "2021-05-03T17:28:55.041898Z",
+                },
+            ],
+            "objectJSON": {
+                "channelA": {
+                    "unit": "mA",
+                    "value": 4.126,
+                },
+                "channelB": {
+                    "unit": "mA",
+                    "value": 4.131,
+                },
+            },
+        }
+        ts, values = chirpstack_decoder._decode(json.dumps(payload_to_decode))
+        assert ts == timestamp
+        assert values == {
+            "channelA": 4.126,
+            "channelB": 4.131,
+        }
 
-        # Connect a subscriber to receive messages.
-        topic.subscriber.connect()
-        time.sleep(0.2)
-        assert topic.subscriber._client.is_connected()
-        topic.subscriber.subscribe_all()
-        time.sleep(0.5)
-        topic.subscriber.disconnect()
+        chirpstack_decoder = decoders.PayloadDecoderChirpstackEM300TH868(None)
+        assert chirpstack_decoder.fields == ["temperature", "humidity"]
+        payload_to_decode["objectJSON"] = {
+            "humidity": 0,
+            "temperature": 21,
+        }
+        ts, values = chirpstack_decoder._decode(json.dumps(payload_to_decode))
+        assert ts == timestamp
+        assert values == {
+            "temperature": 21,
+            "humidity": 0,
+        }
 
-        # A retained message has been received and stored as timeseries in DB.
-        tsdatas = db.session.execute(stmt).all()
-        assert len(tsdatas) == 1
-        tsdata = tsdatas[0][0]
-        assert tsdata.timeseries_id == topic.timeseries_id
-        assert tsdata.timestamp == dt.datetime(
-            2021, 4, 27, 16, 5, 11, tzinfo=dt.timezone.utc)
-        assert tsdata.value == 42
+        chirpstack_decoder = decoders.PayloadDecoderChirpstackUC11(None)
+        assert chirpstack_decoder.fields == ["temperature", "humidity"]
+        ts, values = chirpstack_decoder._decode(json.dumps(payload_to_decode))
+        assert ts == timestamp
+        assert values == {
+            "temperature": 21,
+            "humidity": 0,
+        }
+
+        chirpstack_decoder = decoders.PayloadDecoderChirpstackEAGLE1500(None)
+        assert chirpstack_decoder.fields == [
+            "active_power", "current", "export_active_energy",
+            "import_active_energy", "power_factor", "reactive_energy",
+            "relay_state", "voltage"
+        ]
+        payload_to_decode["objectJSON"] = {
+            "active_power": 0,
+            "current": 0,
+            "export_active_energy": 0,
+            "import_active_energy": 27581,
+            "power_factor": 0,
+            "reactive_energy": 588,
+            "relay_state": 1,
+            "voltage": 234.61,
+        }
+        ts, values = chirpstack_decoder._decode(json.dumps(payload_to_decode))
+        assert ts == timestamp
+        assert values == {
+            "active_power": 0,
+            "current": 0,
+            "export_active_energy": 0,
+            "import_active_energy": 27581,
+            "power_factor": 0,
+            "reactive_energy": 588,
+            "relay_state": 1,
+            "voltage": 234.61,
+        }

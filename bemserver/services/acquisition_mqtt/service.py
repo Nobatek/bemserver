@@ -3,7 +3,10 @@
 from pathlib import Path
 
 from bemserver.core.database import db
-from bemserver.services.acquisition_mqtt.model import Subscriber
+# from bemserver.services.acquisition_mqtt.decoders import register_decoders
+from bemserver.services.acquisition_mqtt import decoders
+from bemserver.services.acquisition_mqtt.model import (
+    Subscriber, PayloadDecoder)
 from bemserver.services.acquisition_mqtt.exceptions import ServiceError
 
 
@@ -26,8 +29,13 @@ class Service:
                 or db.engine is not None and str(db.engine.url) != db_url):
             db.set_db_url(db_url)
 
+    def _register_decoders(self):
+        for decoder_cls in decoders._PAYLOAD_DECODERS.values():
+            PayloadDecoder.register_from_class(decoder_cls)
+
     def run(self, *, client_id=MQTT_CLIENT_ID):
         """Run the MQTT acquisition servive:
+            - register payload decoders
             - get all enabled subsribers
             - connect each subscriber to its broker to get messages
 
@@ -35,6 +43,8 @@ class Service:
             Client ID to use, especially when using a persistent session.
         :raises ServiceError: When no enabled subscriber is available.
         """
+        self._register_decoders()
+
         rows = Subscriber.get_list(is_enabled=True)
         if len(rows) <= 0:
             raise ServiceError(

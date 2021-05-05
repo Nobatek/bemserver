@@ -14,15 +14,18 @@ from bemserver.services.acquisition_mqtt import model as svc_model, decoders
 from bemserver.services.acquisition_mqtt.service import MQTT_CLIENT_ID
 
 
-class PayloadDecoderCustom(decoders.base.PayloadDecoderBase):
+class PayloadDecoderMosquittoUptime(decoders.base.PayloadDecoderBase):
 
-    name = "mosquitto_test"
+    name = "mosquitto_uptime_test"
+    fields = ["uptime"]
 
     def _decode(self, raw_payload):
         timestamp = dt.datetime.now(dt.timezone.utc)
         raw_value = str(raw_payload, "utf-8")
-        value = float(raw_value.split(" ")[0])
-        return timestamp, value
+        values = {
+            "uptime": float(raw_value.split(" ")[0]),
+        }
+        return timestamp, values
 
 
 _BROKER_CERTIFICATE = """
@@ -54,9 +57,12 @@ m/XriWr/Cq4h/JfB7NTsezVslgkBaoU=
 
 
 @pytest.fixture
-def decoder_custom_cls():
-    decoders.register_payload_decoder(PayloadDecoderCustom)
-    return PayloadDecoderCustom
+def decoder_mosquitto_uptime():
+    db_decoder = svc_model.PayloadDecoder.register_from_class(
+        PayloadDecoderMosquittoUptime)
+    decoders._PAYLOAD_DECODERS[
+        PayloadDecoderMosquittoUptime.name] = PayloadDecoderMosquittoUptime
+    return PayloadDecoderMosquittoUptime, db_decoder
 
 
 @pytest.fixture
@@ -97,20 +103,46 @@ def client_id():
 
 
 @pytest.fixture
+def mosquitto_topic_name():
+    return "$SYS/broker/uptime"
+
+
+@pytest.fixture
 def topic_name():
     return "bemserver/test/1"
 
 
 @pytest.fixture
-def topic(topic_name, subscriber):
-    ts = core_model.Timeseries(
-        name="Timeseries 0", description="Test timeseries #0")
-    db.session.add(ts)
-    db.session.commit()
-
+def mosquitto_topic(
+        mosquitto_topic_name, subscriber, decoder_mosquitto_uptime):
+    _, decoder = decoder_mosquitto_uptime
     topic = svc_model.Topic(
-        name=topic_name, timeseries_id=ts.id, subscriber_id=subscriber.id)
+        name=mosquitto_topic_name, payload_decoder_id=decoder.id,
+        subscriber_id=subscriber.id)
     topic.save()
+    for payload_field in decoder.fields:
+        ts = core_model.Timeseries(
+            name=f"Timeseries mosquitto {payload_field.name}")
+        db.session.add(ts)
+        db.session.commit()
+        topic.add_link(payload_field.id, ts.id)
+    return topic
+
+
+@pytest.fixture
+def topic(topic_name, subscriber):
+    decoder = svc_model.PayloadDecoder.register_from_class(
+        decoders.PayloadDecoderBEMServer)
+    topic = svc_model.Topic(
+        name=topic_name, payload_decoder_id=decoder.id,
+        subscriber_id=subscriber.id)
+    topic.save()
+    for payload_field in decoder.fields:
+        ts = core_model.Timeseries(
+            name=f"Timeseries bemserver test {payload_field.name}")
+        db.session.add(ts)
+        db.session.commit()
+        topic.add_link(payload_field.id, ts.id)
     return topic
 
 

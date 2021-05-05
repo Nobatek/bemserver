@@ -10,6 +10,8 @@ from bemserver.services.acquisition_mqtt.exceptions import PayloadDecoderError
 class PayloadDecoderBEMServer(PayloadDecoderBase):
 
     name = "bemserver"
+    description = "Default BEMServer payload decoder"
+    fields = ["value"]
 
     def _decode(self, raw_payload):
         try:
@@ -18,5 +20,7 @@ class PayloadDecoderBEMServer(PayloadDecoderBase):
             raise PayloadDecoderError(str(exc))
         timestamp = dt.datetime.fromisoformat(
             json_payload["ts"].replace("Z", "+00:00"))
-        value = float(json_payload["value"])
-        return timestamp, value
+        values = {
+            "value": float(json_payload["value"]),
+        }
+        return timestamp, values
