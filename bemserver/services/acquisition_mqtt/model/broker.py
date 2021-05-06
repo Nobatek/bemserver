@@ -54,6 +54,8 @@ class Broker(Base):
     tls_certificate = sqla.Column(sqla.String)
 
     subscribers = sqla.orm.relationship("Subscriber", back_populates="broker")
+    topics = sqla.orm.relationship(
+        "Topic", secondary="mqtt_topic_by_broker", back_populates="brokers")
 
     @property
     def tls_certificate_filepath(self):

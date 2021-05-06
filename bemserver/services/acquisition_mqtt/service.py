@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from bemserver.core.database import db
-# from bemserver.services.acquisition_mqtt.decoders import register_decoders
 from bemserver.services.acquisition_mqtt import decoders
 from bemserver.services.acquisition_mqtt.model import (
     Subscriber, PayloadDecoder)
@@ -58,7 +57,8 @@ class Service:
                     self._tls_cert_dirpath)
             # Connect subscriber.
             subscriber.connect(client_id)
-            self._running_subscribers.append(subscriber)
+            if subscriber.is_connected:
+                self._running_subscribers.append(subscriber)
 
         self.is_running = True
 
@@ -69,5 +69,6 @@ class Service:
         """
         while len(self._running_subscribers) > 0:
             self._running_subscribers[0].disconnect()
-            del self._running_subscribers[0]
+            if not self._running_subscribers[0].is_connected:
+                del self._running_subscribers[0]
         self.is_running = False

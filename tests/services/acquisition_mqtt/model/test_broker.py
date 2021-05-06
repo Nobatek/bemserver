@@ -10,7 +10,7 @@ from bemserver.services.acquisition_mqtt.model import Broker, Subscriber
 
 class TestBrokerModel:
 
-    def test_broker_crud(self, database):
+    def test_broker_crud(self, database, mosquitto_topic):
 
         assert Broker.get_by_id(None) is None
         assert Broker.get_by_id(1) is None
@@ -33,6 +33,12 @@ class TestBrokerModel:
         subscriber = Subscriber(broker_id=broker.id)
         subscriber.save()
         assert broker.subscribers == [subscriber]
+
+        assert broker.topics == []
+        assert mosquitto_topic.brokers == []
+        mosquitto_topic.add_broker(broker.id)
+        assert broker.topics == [mosquitto_topic]
+        assert mosquitto_topic.brokers == [broker]
 
         # Can not delete a broker with subscribers.
         with pytest.raises(sqla.exc.IntegrityError):

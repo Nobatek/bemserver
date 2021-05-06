@@ -6,9 +6,10 @@ import pytest
 import datetime as dt
 import sqlalchemy as sqla
 
-from bemserver.services.acquisition_mqtt.model import Subscriber
-from bemserver.core.model import TimeseriesData
 from bemserver.core.database import db
+from bemserver.core.model import TimeseriesData
+from bemserver.services.acquisition_mqtt.model import (
+    Subscriber, Topic, TopicBySubscriber)
 
 
 class TestSubscriberModel:
@@ -53,17 +54,16 @@ class TestSubscriberModel:
 
     def test_subscriber_topics(self, database, subscriber, topic):
 
-        assert topic in subscriber.topics
+        assert subscriber.topics == []
+        assert topic.subscribers == []
+        topic.add_subscriber(subscriber.id)
+        assert subscriber.topics == [topic]
+        assert topic.subscribers == [subscriber]
 
-        # Can not delete a subscriber with topics.
-        with pytest.raises(sqla.exc.IntegrityError):
-            subscriber.delete()
-
-        # Delete subscriber's topics first.
-        for topic in subscriber.topics:
-            topic.delete()
+        # Deleting subscriber do not affect topics.
         subscriber.delete()
         assert Subscriber.get_by_id(subscriber.id) is None
+        assert Topic.get_by_id(topic.id) == topic
 
     def test_subscriber_get_list(self, database, broker):
 
@@ -147,6 +147,7 @@ class TestSubscriberModel:
             self, database, subscriber, client_id, topic, publisher):
 
         assert topic.is_enabled
+        topic.add_subscriber(subscriber.id)
 
         # No timeseries data yet.
         stmt = sqla.select(TimeseriesData)
@@ -160,12 +161,15 @@ class TestSubscriberModel:
         rows = db.session.execute(stmt).all()
         assert len(rows) == 0
 
+        # Get subscription state for the couple topic/subscriber.
+        topic_by_subscriber = TopicBySubscriber.get(topic.id, subscriber.id)
+        assert not topic_by_subscriber.is_subscribed
+
         # Do not use a persistent session.
         subscriber.use_persistent_session = False
-        assert not topic.is_subscribed
         subscriber.connect()  # non persistent session: client ID not needed
         assert subscriber.is_connected
-        assert topic.is_subscribed
+        assert topic_by_subscriber.is_subscribed
 
         # Wait just enough time to get retained message, at least.
         time.sleep(0.5)
@@ -177,7 +181,7 @@ class TestSubscriberModel:
 
         subscriber.disconnect()
         assert not subscriber.is_connected
-        assert not topic.is_subscribed
+        assert not topic_by_subscriber.is_subscribed
 
         # As session was not persistent, subscriptions are lost on broker-side
         #  and messages are not stored for the subscriber.
@@ -195,7 +199,7 @@ class TestSubscriberModel:
         # Reconnect and resubscribe.
         subscriber.connect()
         assert subscriber.is_connected
-        assert topic.is_subscribed
+        assert topic_by_subscriber.is_subscribed
 
         # Wait just enough time to get the new retained message.
         time.sleep(0.5)
@@ -215,7 +219,7 @@ class TestSubscriberModel:
         assert subscriber.is_connected
         # After first connection, persistent session is not present yet.
         assert not subscriber._client_session_present
-        assert topic.is_subscribed
+        assert topic_by_subscriber.is_subscribed
 
         # Wait just enough time to get retained message, at least.
         time.sleep(0.5)
@@ -233,14 +237,14 @@ class TestSubscriberModel:
             if i == 1:
                 subscriber.disconnect()
                 assert not subscriber.is_connected
-                assert not topic.is_subscribed
+                assert not topic_by_subscriber.is_subscribed
 
         # Reconnect subscriber with client ID to its persistent session.
         subscriber.connect(client_id)
         assert subscriber.is_connected
         # At second connection, persistent session is present.
         assert subscriber._client_session_present
-        assert topic.is_subscribed
+        assert topic_by_subscriber.is_subscribed
 
         # Wait just enough time to get all messages.
         time.sleep(1)
@@ -256,12 +260,13 @@ class TestSubscriberModel:
         # And disconnect.
         subscriber.disconnect()
         assert not subscriber.is_connected
-        assert not topic.is_subscribed
+        assert not topic_by_subscriber.is_subscribed
 
     def test_subscriber_unsubscribe(
             self, database, subscriber, client_id, topic, publisher):
 
         assert topic.is_enabled
+        topic.add_subscriber(subscriber.id)
 
         # No timeseries data yet.
         stmt = sqla.select(TimeseriesData)
@@ -275,10 +280,13 @@ class TestSubscriberModel:
         rows = db.session.execute(stmt).all()
         assert len(rows) == 0
 
-        assert not topic.is_subscribed
+        # Get subscription state for the couple topic/subscriber.
+        topic_by_subscriber = TopicBySubscriber.get(topic.id, subscriber.id)
+        assert not topic_by_subscriber.is_subscribed
+
         subscriber.connect(client_id)
         assert subscriber.is_connected
-        assert topic.is_subscribed
+        assert topic_by_subscriber.is_subscribed
 
         # Wait just enough time to get retained message, at least.
         time.sleep(0.5)
@@ -290,7 +298,7 @@ class TestSubscriberModel:
 
         # Unsubscribe from topic.
         subscriber.unsubscribe_all()
-        assert not topic.is_subscribed
+        assert not topic_by_subscriber.is_subscribed
         time.sleep(0.2)
         # Publish a new message, the subscriber should not receive it.
         payload = {

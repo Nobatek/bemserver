@@ -57,7 +57,7 @@ m/XriWr/Cq4h/JfB7NTsezVslgkBaoU=
 
 
 @pytest.fixture
-def decoder_mosquitto_uptime():
+def decoder_mosquitto_uptime(database):
     db_decoder = svc_model.PayloadDecoder.register_from_class(
         PayloadDecoderMosquittoUptime)
     decoders._PAYLOAD_DECODERS[
@@ -113,12 +113,13 @@ def topic_name():
 
 
 @pytest.fixture
-def mosquitto_topic(
-        mosquitto_topic_name, subscriber, decoder_mosquitto_uptime):
+def mosquitto_topic(mosquitto_topic_name, decoder_mosquitto_uptime):
+
+    print("IN mosquitto_topic")
+
     _, decoder = decoder_mosquitto_uptime
     topic = svc_model.Topic(
-        name=mosquitto_topic_name, payload_decoder_id=decoder.id,
-        subscriber_id=subscriber.id)
+        name=mosquitto_topic_name, payload_decoder_id=decoder.id)
     topic.save()
     for payload_field in decoder.fields:
         ts = core_model.Timeseries(
@@ -130,12 +131,11 @@ def mosquitto_topic(
 
 
 @pytest.fixture
-def topic(topic_name, subscriber):
+def topic(topic_name):
     decoder = svc_model.PayloadDecoder.register_from_class(
         decoders.PayloadDecoderBEMServer)
     topic = svc_model.Topic(
-        name=topic_name, payload_decoder_id=decoder.id,
-        subscriber_id=subscriber.id)
+        name=topic_name, payload_decoder_id=decoder.id)
     topic.save()
     for payload_field in decoder.fields:
         ts = core_model.Timeseries(

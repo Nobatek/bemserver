@@ -44,7 +44,9 @@ class TestDecoders:
         assert values["uptime"] == 754369
 
     def test_decoder_mosquitto_uptime_on_message(
-            self, database, mosquitto_topic, decoder_mosquitto_uptime):
+            self, database, mosquitto_topic, subscriber):
+
+        mosquitto_topic.add_subscriber(subscriber.id)
 
         # At first there is no timeseries data.
         stmt = sqla.select(TimeseriesData)
@@ -60,13 +62,13 @@ class TestDecoders:
 
         ts_before_message = dt.datetime.now(dt.timezone.utc)
 
-        # Connect a subscriber to receive messages.
-        mosquitto_topic.subscriber.connect()
+        # Connect the subscriber to receive messages.
+        subscriber.connect()
         time.sleep(0.2)
-        assert mosquitto_topic.subscriber._client.is_connected()
-        mosquitto_topic.subscriber.subscribe_all()
+        assert subscriber._client.is_connected()
+        subscriber.subscribe_all()
         time.sleep(0.5)
-        mosquitto_topic.subscriber.disconnect()
+        subscriber.disconnect()
 
         ts_after_message = dt.datetime.now(dt.timezone.utc)
         ts_last_recept = (

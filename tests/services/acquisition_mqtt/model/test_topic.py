@@ -6,12 +6,14 @@ import sqlalchemy as sqla
 
 from bemserver.core.database import db
 from bemserver.core.model import Timeseries
-from bemserver.services.acquisition_mqtt.model import Topic, TopicLink
+from bemserver.services.acquisition_mqtt.model import (
+    Topic, TopicLink, TopicByBroker, TopicBySubscriber)
 
 
 class TestTopicModel:
 
-    def test_topic_crud(self, database, subscriber, decoder_mosquitto_uptime):
+    def test_topic_crud(
+            self, database, decoder_mosquitto_uptime, broker, subscriber):
 
         decoder_mosquitto_uptime_cls, decoder = decoder_mosquitto_uptime
 
@@ -19,24 +21,24 @@ class TestTopicModel:
         assert Topic.get_by_id(1) is None
 
         topic = Topic(
-            name="$SYS/broker/uptime", payload_decoder_id=decoder.id,
-            subscriber_id=subscriber.id)
+            name="$SYS/broker/uptime", payload_decoder_id=decoder.id)
         assert topic.id is None
         topic.save()
         assert topic.id is not None
         assert topic.qos == 1
         assert topic.is_enabled
-        assert not topic.is_subscribed
-        assert topic.timestamp_last_subscription is None
-        assert topic.subscriber == subscriber
         assert topic.payload_decoder == decoder
         assert topic.payload_decoder_cls == decoder_mosquitto_uptime_cls
         assert isinstance(
             topic.payload_decoder_instance, decoder_mosquitto_uptime_cls)
         assert topic.links == []
+        assert topic.brokers == []
+        assert topic.subscribers == []
 
         assert Topic.get_by_id(topic.id) == topic
 
+        # Add links to topic.
+        assert len(decoder.fields) > 0
         for payload_field in decoder.fields:
             ts = Timeseries(name=f"Timeseries {payload_field.name}")
             db.session.add(ts)
@@ -50,36 +52,56 @@ class TestTopicModel:
         assert [x.payload_field.name for x in topic.links] == [
             x.name for x in decoder.fields]
 
-        ts_now = dt.datetime.now(dt.timezone.utc)
-        topic.update_subscription(True)
-        assert topic.is_subscribed
-        assert topic.timestamp_last_subscription is not None
-        assert topic.timestamp_last_subscription > ts_now
-        ts_last_sub = topic.timestamp_last_subscription
+        # Remove links from topic.
+        topic.remove_link(666, ts.id)
+        assert len(topic.links) == len(decoder.fields)
+        topic.remove_link(decoder.fields[0].id, 666)
+        assert len(topic.links) == len(decoder.fields)
+        topic.remove_link(decoder.fields[0].id, ts.id)
+        assert len(topic.links) == len(decoder.fields) - 1
+        topic.add_link(decoder.fields[0].id, ts.id)
+        assert len(topic.links) == len(decoder.fields)
 
-        topic.update_subscription(False)
-        assert not topic.is_subscribed
-        assert topic.timestamp_last_subscription == ts_last_sub
-
-        # Integrity error if deleting a payload decoder referenced in a topic.
+        # Add relation between topic and broker.
+        topic_by_broker = topic.add_broker(broker.id)
+        assert topic_by_broker.topic_id == topic.id
+        assert topic_by_broker.broker_id == broker.id
+        assert topic.brokers == [broker]
         with pytest.raises(sqla.exc.IntegrityError):
-            decoder.delete()
+            topic.add_broker(666)
 
-        # Deleting a topic also deletes its links in cascade.
-        topic_id = topic.id
-        topic.delete()
-        assert Topic.get_by_id(topic.id) is None
-        stmt = sqla.select(TopicLink).filter(TopicLink.topic_id == topic_id)
-        rows = db.session.execute(stmt).all()
-        assert len(rows) == 0
+        # Remove relation between topic and broker.
+        topic.remove_broker(broker.id)
+        assert topic.brokers == []
+        # No problem if we remove a relation to an inexistant broker.
+        topic.remove_broker(666)
 
-        topic.delete()  # try to delete again
-        assert Topic.get_by_id(topic.id) is None
+        # Add relation between topic and subscriber.
+        topic_by_subscriber = topic.add_subscriber(subscriber.id)
+        assert topic_by_subscriber.topic_id == topic.id
+        assert topic_by_subscriber.subscriber_id == subscriber.id
+        assert topic.subscribers == [subscriber]
+        with pytest.raises(sqla.exc.IntegrityError):
+            topic.add_subscriber(666)
 
-        topic.save()
-        assert Topic.get_by_id(topic.id) is not None
-        assert len(topic.links) == 0
+        ts_now = dt.datetime.now(dt.timezone.utc)
+        topic.update_subscription(subscriber.id, True)
+        assert topic_by_subscriber.is_subscribed
+        assert topic_by_subscriber.timestamp_last_subscription is not None
+        assert topic_by_subscriber.timestamp_last_subscription > ts_now
+        ts_last_sub = topic_by_subscriber.timestamp_last_subscription
 
+        topic.update_subscription(subscriber.id, False)
+        assert not topic_by_subscriber.is_subscribed
+        assert topic_by_subscriber.timestamp_last_subscription == ts_last_sub
+
+        # Remove relation between topic and subscriber.
+        topic.remove_subscriber(subscriber.id)
+        assert topic.subscribers == []
+        # No problem if we remove a relation to an inexistant subscriber.
+        topic.remove_subscriber(666)
+
+        # Save errors.
         topic.qos = 666
         with pytest.raises(ValueError) as exc:
             topic._verify_consistency()
@@ -90,71 +112,57 @@ class TestTopicModel:
         with pytest.raises(sqla.exc.IntegrityError):
             topic.save()
 
-        # Remove topic link.
-        topic.add_link(decoder.fields[0].id, ts.id)
-        assert len(topic.links) == 1
-        topic.remove_link(666, ts.id)
-        assert len(topic.links) == 1
-        topic.remove_link(decoder.fields[0].id, 666)
-        assert len(topic.links) == 1
-        topic.remove_link(decoder.fields[0].id, ts.id)
+        topic.delete()
+        assert Topic.get_by_id(topic.id) is None
+
+        topic.delete()  # try to delete again
+        assert Topic.get_by_id(topic.id) is None
+
+        topic.save()
+        assert Topic.get_by_id(topic.id) is not None
         assert len(topic.links) == 0
 
-        # Deleting payload field also removes topic links concerned in cascade.
-        ts = Timeseries(name="Timeseries test")
-        db.session.add(ts)
-        db.session.commit()
-        topic.add_link(decoder.fields[0].id, ts.id)
-        assert len(topic.links) == 1
-        decoder.fields[0].delete()
-        assert len(topic.links) == 0
+    def test_topic_delete_cascade(
+            self, database, mosquitto_topic, broker, subscriber):
 
-    def test_topic_get_list(
-            self, database, subscriber, decoder_mosquitto_uptime):
+        topic_id = mosquitto_topic.id
+        assert len(mosquitto_topic.links) > 0
+        mosquitto_topic.add_broker(broker.id)
+        assert len(mosquitto_topic.brokers) > 0
+        mosquitto_topic.add_subscriber(subscriber.id)
+        assert len(mosquitto_topic.subscribers) > 0
 
-        _, decoder = decoder_mosquitto_uptime
+        mosquitto_topic.delete()
+        assert Topic.get_by_id(topic_id) is None
 
-        rows = Topic.get_list(subscriber.id)
+        # Deleting a topic also deletes in cascade links...
+        stmt = sqla.select(TopicLink).filter(TopicLink.topic_id == topic_id)
+        rows = db.session.execute(stmt).all()
         assert len(rows) == 0
 
-        topics = []
-        for i in range(2):
-            topic = Topic(
-                name=f"topic/{i}", payload_decoder_id=decoder.id,
-                subscriber_id=subscriber.id)
-            topic.save()
-            topics.append(topic)
+        # ...relations to broker...
+        stmt = sqla.select(TopicByBroker)
+        stmt = stmt.filter(TopicByBroker.topic_id == topic_id)
+        rows = db.session.execute(stmt).all()
+        assert len(rows) == 0
 
-        rows = Topic.get_list(subscriber.id)
-        assert len(rows) == 2
-        assert rows[0][0].id == topics[0].id
-        assert rows[1][0].id == topics[1].id
-
-        topics[1].is_enabled = False
-        topics[1].save()
-
-        rows = Topic.get_list(subscriber.id, is_enabled=True)
-        assert len(rows) == 1
-        assert rows[0][0].id == topics[0].id
-
-        rows = Topic.get_list(subscriber.id, is_enabled=False)
-        assert len(rows) == 1
-        assert rows[0][0].id == topics[1].id
-
-        rows = Topic.get_list(42)
+        # ...and relations to subscriber.
+        stmt = sqla.select(TopicBySubscriber)
+        stmt = stmt.filter(TopicBySubscriber.topic_id == topic_id)
+        rows = db.session.execute(stmt).all()
         assert len(rows) == 0
 
 
 class TestTopicLinkModel:
 
     def test_topic_link_crud(
-            self, database, subscriber, decoder_mosquitto_uptime):
+            self, database, subscriber, mosquitto_topic_name,
+            decoder_mosquitto_uptime):
 
         _, decoder = decoder_mosquitto_uptime
 
         topic = Topic(
-            name="$SYS/broker/uptime", payload_decoder_id=decoder.id,
-            subscriber_id=subscriber.id)
+            name=mosquitto_topic_name, payload_decoder_id=decoder.id)
         topic.save()
 
         assert topic.links == []
@@ -204,3 +212,69 @@ class TestTopicLinkModel:
 
         topic_link.delete()
         assert len(topic.links) == 1
+
+
+class TestTopicByBrokerModel:
+
+    def test_topic_by_broker(
+            self, database, decoder_mosquitto_uptime, broker):
+
+        _, decoder = decoder_mosquitto_uptime
+
+        assert len(broker.topics) == 0
+
+        topic = Topic(name="test", payload_decoder_id=decoder.id)
+        topic.save()
+        assert len(topic.brokers) == 0
+
+        topic.add_broker(broker.id)
+        assert topic.brokers == [broker]
+        assert broker.topics == [topic]
+
+        topic_by_broker = TopicByBroker.get(topic.id, broker.id)
+        assert topic_by_broker.is_enabled
+
+        topic.remove_broker(broker.id)
+        assert len(topic.brokers) == 0
+        assert len(broker.topics) == 0
+
+        topic_by_broker = TopicByBroker.get(topic.id, broker.id)
+        assert topic_by_broker is None
+
+
+class TestTopicBySubscriberModel:
+
+    def test_topic_by_subscriber(
+            self, database, decoder_mosquitto_uptime, subscriber):
+
+        _, decoder = decoder_mosquitto_uptime
+
+        assert len(subscriber.topics) == 0
+
+        topic = Topic(name="test", payload_decoder_id=decoder.id)
+        topic.save()
+        assert len(topic.subscribers) == 0
+
+        topic.add_subscriber(subscriber.id)
+        assert len(topic.subscribers) == 1
+        assert len(subscriber.topics) == 1
+
+        topic_by_subscriber = TopicBySubscriber.get(topic.id, subscriber.id)
+        assert topic_by_subscriber.is_enabled
+        assert not topic_by_subscriber.is_subscribed
+        assert topic_by_subscriber.timestamp_last_subscription is None
+
+        ts_now = dt.datetime.now(dt.timezone.utc)
+        topic.update_subscription(subscriber.id, True)
+        assert topic_by_subscriber.is_subscribed
+        assert topic_by_subscriber.timestamp_last_subscription is not None
+        assert topic_by_subscriber.timestamp_last_subscription > ts_now
+        ts_last_sub = topic_by_subscriber.timestamp_last_subscription
+
+        topic_by_subscriber.update_subscription(False)
+        assert not topic_by_subscriber.is_subscribed
+        assert topic_by_subscriber.timestamp_last_subscription == ts_last_sub
+
+        topic.remove_subscriber(subscriber.id)
+        assert len(topic.subscribers) == 0
+        assert len(subscriber.topics) == 0

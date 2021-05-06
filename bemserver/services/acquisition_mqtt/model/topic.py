@@ -7,6 +7,153 @@ from bemserver.core.database import Base, db
 from bemserver.services.acquisition_mqtt import decoders
 
 
+class TopicByBroker(Base):
+    """Describes the association between Topic and Broker.
+
+    :param int topic_id: Relation to a topic unique ID.
+    :param broker_id: Relation to a broker unique ID.
+    :param bool is_enabled: (optional, default True)
+        Active/deactivate the link between topic and broker.
+    """
+    __tablename__ = "mqtt_topic_by_broker"
+    __table_args__ = (
+        sqla.PrimaryKeyConstraint("topic_id", "broker_id"),
+    )
+
+    topic_id = sqla.Column(
+        sqla.Integer,
+        sqla.ForeignKey("mqtt_topic.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    broker_id = sqla.Column(
+        sqla.Integer,
+        sqla.ForeignKey("mqtt_broker.id"),
+        nullable=False,
+    )
+    is_enabled = sqla.Column(sqla.Boolean, nullable=False, default=True)
+
+    def __repr__(self):
+        str_fields = ", ".join([
+            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
+        ])
+        return f"<{self.__table__.name}>({str_fields})"
+
+    def save(self):
+        """Write the item data to the database."""
+        db.session.add(self)
+        try:
+            db.session.commit()
+        except sqla.exc.IntegrityError as exc:
+            db.session.rollback()
+            raise exc
+
+    def delete(self):
+        """Delete the item from the database."""
+        db.session.delete(self)
+        db.session.commit()
+
+    @classmethod
+    def get(cls, topic_id, broker_id):
+        """Find an existing association, in database, between topic and broker.
+
+        :param int topic_id: Unique ID of a topic.
+        :param int broker_id: Unique ID of a broker.
+        :returns TopicByBroker: Instance found of `TopicByBroker`.
+        """
+        stmt = sqla.select(cls)
+        stmt = stmt.filter(cls.topic_id == topic_id)
+        stmt = stmt.filter(cls.broker_id == broker_id)
+        try:
+            return db.session.execute(stmt).one()[0]
+        except sqla.exc.NoResultFound:
+            return None
+
+
+class TopicBySubscriber(Base):
+    """Describes the association between Topic and Subscriber.
+
+    :param int topic_id: Relation to a topic unique ID.
+    :param subscriber_id: Relation to a subscriber unique ID.
+    :param int qos: (default 1)
+        Level of Quality of Service (QoS) used for this topic/subscriber.
+    :param bool is_subscribed: (optional, default False)
+        This allows to known the last topic subscription status.
+    :param datetime timestamp_last_subscription: (optional, default None)
+        Field auto-updated by `update_subscription` method.
+        This allows to known the last topic subscription timestamp.
+    :param bool is_enabled: (optional, default True)
+        Active/deactivate the link between topic and subscriber.
+    """
+    __tablename__ = "mqtt_topic_by_subscriber"
+    __table_args__ = (
+        sqla.PrimaryKeyConstraint("topic_id", "subscriber_id"),
+    )
+
+    topic_id = sqla.Column(
+        sqla.Integer,
+        sqla.ForeignKey("mqtt_topic.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    subscriber_id = sqla.Column(
+        sqla.Integer,
+        sqla.ForeignKey("mqtt_subscriber.id"),
+        nullable=False,
+    )
+    is_enabled = sqla.Column(sqla.Boolean, nullable=False, default=True)
+
+    # TODO: see if an overrided qos will be needed here or not
+    # qos = sqla.Column(sqla.Integer, nullable=False, default=1)
+    is_subscribed = sqla.Column(sqla.Boolean, nullable=False, default=False)
+    timestamp_last_subscription = sqla.Column(sqla.DateTime(timezone=True))
+
+    def __repr__(self):
+        str_fields = ", ".join([
+            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
+        ])
+        return f"<{self.__table__.name}>({str_fields})"
+
+    def update_subscription(self, is_subscribed):
+        """Update topic subscription status for a subscriber.
+
+        :param bool is_subscribed: Whether topic has been subscribed or not.
+        """
+        self.is_subscribed = is_subscribed
+        if is_subscribed:
+            # Only update this field value at subscription time.
+            self.timestamp_last_subscription = dt.datetime.now(dt.timezone.utc)
+        self.save()
+
+    def save(self):
+        """Write the item data to the database."""
+        db.session.add(self)
+        try:
+            db.session.commit()
+        except sqla.exc.IntegrityError as exc:
+            db.session.rollback()
+            raise exc
+
+    def delete(self):
+        """Delete the item from the database."""
+        db.session.delete(self)
+        db.session.commit()
+
+    @classmethod
+    def get(cls, topic_id, subscriber_id):
+        """Find an existing association between topic and subscriber.
+
+        :param int topic_id: Unique ID of a topic.
+        :param int subscriber_id: Unique ID of a subscriber.
+        :returns TopicBySubscriber: Instance found of `TopicBySubscriber`.
+        """
+        stmt = sqla.select(cls)
+        stmt = stmt.filter(cls.topic_id == topic_id)
+        stmt = stmt.filter(cls.subscriber_id == subscriber_id)
+        try:
+            return db.session.execute(stmt).one()[0]
+        except sqla.exc.NoResultFound:
+            return None
+
+
 class TopicLink(Base):
     """Describers the links between topic, payload fields and timeseries.
 
@@ -92,13 +239,7 @@ class Topic(Base):
         Text to describe the topic.
     :param int payload_decoder_id: Relation to a payload decoder unique ID.
     :param bool is_enabled: (optional, default True)
-    :param bool is_subscribed: (optional, default False)
-        This allows to known the last topic subscription status.
-    :param datetime timestamp_last_subscription: (optional, default None)
-        Field auto-updated by `update_subscription` method.
-        This allows to known the last topic subscription timestamp.
-    :param int timeseries_id: Relation to a timeseries unique ID.
-    :param subscriber_id: Relation to a subscriber unique ID.
+        Active/deactivate the topic.
     """
     __tablename__ = "mqtt_topic"
 
@@ -112,21 +253,19 @@ class Topic(Base):
         nullable=False,
     )
     is_enabled = sqla.Column(sqla.Boolean, nullable=False, default=True)
-    is_subscribed = sqla.Column(sqla.Boolean, nullable=False, default=False)
-    timestamp_last_subscription = sqla.Column(sqla.DateTime(timezone=True))
-    subscriber_id = sqla.Column(
-        sqla.Integer,
-        sqla.ForeignKey("mqtt_subscriber.id"),
-        nullable=False,
-    )
 
     payload_decoder = sqla.orm.relationship(
         "PayloadDecoder", back_populates="topics")
-    subscriber = sqla.orm.relationship("Subscriber", back_populates="topics")
-
     links = sqla.orm.relationship(
         "TopicLink", back_populates="topic", cascade="all,delete",
         passive_deletes=True)
+
+    brokers = sqla.orm.relationship(
+        "Broker", secondary=TopicByBroker.__tablename__,
+        back_populates="topics", cascade="all,delete", passive_deletes=True)
+    subscribers = sqla.orm.relationship(
+        "Subscriber", secondary=TopicBySubscriber.__tablename__,
+        back_populates="topics", cascade="all,delete", passive_deletes=True)
 
     @property
     def payload_decoder_cls(self):
@@ -156,6 +295,7 @@ class Topic(Base):
         ])
         return f"<{self.__table__.name}>({str_fields})"
 
+    # TODO: add link from payload field name?
     def add_link(self, payload_field_id, timeseries_id):
         """Add a payload field/timeseries link to this topic.
 
@@ -167,14 +307,10 @@ class Topic(Base):
         topic_link = TopicLink(
             topic_id=self.id, payload_field_id=payload_field_id,
             timeseries_id=timeseries_id)
-        try:
-            self.links.append(topic_link)
-            db.session.commit()
-        except sqla.exc.IntegrityError as exc:
-            db.session.rollback()
-            raise exc
+        topic_link.save()
         return topic_link
 
+    # TODO: remove link from payload field name?
     def remove_link(self, payload_field_id, timeseries_id):
         """Remove a payload field/timeseries link from this topic.
 
@@ -185,6 +321,27 @@ class Topic(Base):
         topic_link = TopicLink.get(payload_field_id, timeseries_id)
         if topic_link in self.links:
             topic_link.delete()
+
+    def add_broker(self, broker_id):
+        topic_by_broker = TopicByBroker(topic_id=self.id, broker_id=broker_id)
+        topic_by_broker.save()
+        return topic_by_broker
+
+    def remove_broker(self, broker_id):
+        topic_by_broker = TopicByBroker.get(self.id, broker_id)
+        if topic_by_broker is not None:
+            topic_by_broker.delete()
+
+    def add_subscriber(self, subscriber_id):
+        topic_by_subscriber = TopicBySubscriber(
+            topic_id=self.id, subscriber_id=subscriber_id)
+        topic_by_subscriber.save()
+        return topic_by_subscriber
+
+    def remove_subscriber(self, subscriber_id):
+        topic_by_subscriber = TopicBySubscriber.get(self.id, subscriber_id)
+        if topic_by_subscriber is not None:
+            topic_by_subscriber.delete()
 
     def _verify_consistency(self):
         if self.qos and self.qos not in (0, 1, 2,):
@@ -201,6 +358,8 @@ class Topic(Base):
         if self._db_state.was_deleted:
             # Set the object transient (session rollback of the deletion).
             sqla.orm.make_transient(self)
+            for link in self.links:
+                sqla.orm.make_transient(link)
         db.session.add(self)
         try:
             db.session.commit()
@@ -217,16 +376,16 @@ class Topic(Base):
             db.session.delete(self)
             db.session.commit()
 
-    def update_subscription(self, is_subscribed):
+    def update_subscription(self, subscriber_id, is_subscribed):
         """Update topic subscription status.
 
+        :param int subscriber_id:
+            Unique subscriber ID that has subscribed/unsubscribe to topic.
         :param bool is_subscribed: Whether topic has been subscribed or not.
         """
-        self.is_subscribed = is_subscribed
-        if is_subscribed:
-            # Only update this field value at subscription time.
-            self.timestamp_last_subscription = dt.datetime.now(dt.timezone.utc)
-        self.save()
+        topic_by_subscriber = TopicBySubscriber.get(self.id, subscriber_id)
+        if topic_by_subscriber is not None:
+            topic_by_subscriber.update_subscription(is_subscribed)
 
     @classmethod
     def get_by_id(cls, id):
@@ -239,21 +398,3 @@ class Topic(Base):
         if id is None:
             return None
         return db.session.get(cls, id)
-
-    @classmethod
-    def get_list(cls, subscriber_id, is_enabled=None):
-        """List all topics stored in database.
-
-        :param int subscriber_id: Filter topics on `subscriber_id` field value.
-            Ignored if ̀ None`.
-        :param bool is_enabled: (optional, default None)
-            Filter topics on `is_enabled` field value. Ignored if `None`.
-        :returns list: The list of topics found.
-        """
-        stmt = sqla.select(cls)
-        if subscriber_id is not None:
-            stmt = stmt.filter(cls.subscriber_id == subscriber_id)
-        if is_enabled is not None:
-            stmt = stmt.filter(cls.is_enabled == is_enabled)
-        stmt = stmt.order_by(cls.id)
-        return db.session.execute(stmt).all()

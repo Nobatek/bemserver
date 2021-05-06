@@ -6,6 +6,6 @@ A subscriber can:
 """
 
 from .broker import Broker  # noqa
-from .payload_decoder import PayloadDecoder, PayloadField  # noqa
-from .topic import Topic, TopicLink  # noqa
 from .subscriber import Subscriber  # noqa
+from .payload_decoder import PayloadDecoder, PayloadField  # noqa
+from .topic import Topic, TopicLink, TopicByBroker, TopicBySubscriber  # noqa

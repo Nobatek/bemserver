@@ -3,8 +3,10 @@
 import pytest
 import sqlalchemy as sqla
 
+from bemserver.core.database import db
+from bemserver.core.model import Timeseries
 from bemserver.services.acquisition_mqtt.model import (
-    PayloadDecoder, PayloadField)
+    PayloadDecoder, PayloadField, Topic)
 
 from tests.services.acquisition_mqtt.conftest import (
     PayloadDecoderMosquittoUptime)
@@ -47,9 +49,21 @@ class TestPayloadDecoderModel:
         decoder.remove_field(field_name=other_fields[1].name)
         assert decoder.fields == [payload_field]
 
+        # Integrity error if deleting a payload decoder referenced in a topic.
+        topic = Topic(name="test", payload_decoder_id=decoder.id)
+        topic.save()
+        with pytest.raises(sqla.exc.IntegrityError):
+            decoder.delete()
+        topic.delete()
+
         # Deleting a payload decoder also removes payload fields in cascade.
+        stmt = sqla.select(PayloadField)
+        stmt = stmt.filter(PayloadField.payload_decoder_id == decoder.id)
+        rows = db.session.execute(stmt).all()
+        assert len(rows) > 0
         decoder.delete()
-        assert PayloadField.get_by_id(payload_field.id) is None
+        rows = db.session.execute(stmt).all()
+        assert len(rows) == 0
 
     def test_payload_decoder_register(self, database):
 
@@ -108,3 +122,22 @@ class TestPayloadFieldModel:
         payload_field.delete()
         assert PayloadField.get_by_id(1) is None
         assert PayloadField.get(decoder.id, "test") is None
+
+    def test_payload_field_delete_cascade(
+            self, database, decoder_mosquitto_uptime):
+
+        _, decoder = decoder_mosquitto_uptime
+
+        assert len(decoder.fields) > 0
+
+        topic = Topic(name="test", payload_decoder_id=decoder.id)
+        topic.save()
+        ts = Timeseries(name="Timeseries test")
+        db.session.add(ts)
+        db.session.commit()
+        topic.add_link(decoder.fields[0].id, ts.id)
+
+        # Deleting payload field also removes topic links concerned in cascade.
+        assert len(topic.links) == 1
+        decoder.fields[0].delete()
+        assert len(topic.links) == 0

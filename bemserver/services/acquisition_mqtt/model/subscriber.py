@@ -64,7 +64,9 @@ class Subscriber(Base):
     timestamp_last_connection = sqla.Column(sqla.DateTime(timezone=True))
 
     broker = sqla.orm.relationship("Broker", back_populates="subscribers")
-    topics = sqla.orm.relationship("Topic", back_populates="subscriber")
+    topics = sqla.orm.relationship(
+        "Topic", secondary="mqtt_topic_by_subscriber",
+        back_populates="subscribers")
 
     @property
     def must_authenticate(self):
@@ -182,7 +184,7 @@ class Subscriber(Base):
         #  and re-subscribes to those topics.
         # Update topics' subscription states in database.
         for topic in self.topics:
-            topic.update_subscription(False)
+            topic.update_subscription(self.id, False)
 
         self._client.disconnect()
 
@@ -212,7 +214,7 @@ class Subscriber(Base):
         self._client.message_callback_add(
             topic.name, topic.payload_decoder_instance.on_message)
         self._client.subscribe(topic.name, topic.qos)
-        topic.update_subscription(True)
+        topic.update_subscription(self.id, True)
 
     def subscribe_all(self):
         """Automatically make the MQTT client subscribe to all its topics."""
@@ -229,7 +231,7 @@ class Subscriber(Base):
         :param Topic topic: Topic instance to unsubscribe from.
         """
         self._client.unsubscribe(topic.name)
-        topic.update_subscription(False)
+        topic.update_subscription(self.id, False)
 
     def unsubscribe_all(self):
         """Automatically make the MQTT client unsubscribe from all its topics.
