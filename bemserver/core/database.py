@@ -39,4 +39,8 @@ class DBConnection:
         self.drop_all()
         self.create_all()
 
+    def dispose(self):
+        self.engine.dispose()
+        self.engine = None
+
 db = DBConnection()

@@ -19,6 +19,8 @@ def database():
     db.setup_tables()
     yield db
     db.session.remove()
+    # Destroy DB engine, mainly for threaded code (as MQTT service).
+    db.dispose()
 
 
 @pytest.fixture(params=[{}])
