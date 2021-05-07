@@ -173,3 +173,22 @@ def publisher(topic_name):
 
     pub_cli.loop_stop()
     pub_cli.disconnect()
+
+
+@pytest.fixture
+def json_service_config(db_url, tmpdir):
+    return {
+        "db_url": db_url,
+        "working_dirpath": str(tmpdir),
+        "logging": {
+            "enabled": True,
+            "format": (
+                "%(asctime)s %(levelname)-8s"
+                " [%(name)s].[%(filename)s:%(funcName)s:%(lineno)d]"
+                " [%(processName)s:%(process)d].[%(threadName)s:%(thread)d]"
+                " || %(message)s"),
+            "level": "DEBUG",
+            "dirpath": str(tmpdir),
+            "history": 30,
+        },
+    }
