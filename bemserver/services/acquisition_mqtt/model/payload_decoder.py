@@ -1,11 +1,15 @@
 """MQTT payload decoder"""
 
+import logging
 import sqlalchemy as sqla
 
 from bemserver.core.database import Base, db
-from bemserver.services.acquisition_mqtt import decoders
+from bemserver.services.acquisition_mqtt import decoders, SERVICE_LOGNAME
 from bemserver.services.acquisition_mqtt.exceptions import (
     PayloadDecoderRegistrationError)
+
+
+logger = logging.getLogger(SERVICE_LOGNAME)
 
 
 class PayloadField(Base):
@@ -175,10 +179,13 @@ class PayloadDecoder(Base):
             When payload decoder class is not valid.
         :returns PayloadDecoder: Instance of registered `PayloadDecoder`.
         """
+        logger.info(f"Registering {decoder_cls} payload decoder...")
         if not issubclass(decoder_cls, decoders.PayloadDecoderBase):
-            raise PayloadDecoderRegistrationError(
+            msg_err = (
                 f"{decoder_cls} does not subclass"
                 f" {decoders.PayloadDecoderBase}!")
+            logger.error(msg_err)
+            raise PayloadDecoderRegistrationError(msg_err)
         # Verify if decoder exists in database. If not insert it.
         decoder = cls.get_by_name(decoder_cls.name)
         if decoder is None:
@@ -188,6 +195,7 @@ class PayloadDecoder(Base):
             for field in decoder_cls.fields:
                 decoder.add_field(field)
         # TODO: if exists, try to update (description, add/remove fields)?
+        logger.info(f"{decoder_cls.name} payload decoder registered!")
         return decoder
 
     @classmethod

@@ -1,5 +1,6 @@
 """MQTT subscriber"""
 
+import logging
 import time
 import datetime as dt
 import sqlalchemy as sqla
@@ -7,7 +8,11 @@ import paho.mqtt.client as mqttc
 import paho.mqtt.properties as mqtt_props
 
 from bemserver.core.database import Base, db
+from bemserver.services.acquisition_mqtt import SERVICE_LOGNAME
 from bemserver.services.acquisition_mqtt.model import Broker
+
+
+logger = logging.getLogger(SERVICE_LOGNAME)
 
 
 class Subscriber(Base):
@@ -76,6 +81,10 @@ class Subscriber(Base):
     def _db_state(self):
         return sqla.orm.util.object_state(self)
 
+    @property
+    def _log_header(self):
+        return f"[Subscriber #{self.id} @{self.broker.host}]"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._client_id = None
@@ -90,6 +99,7 @@ class Subscriber(Base):
 
     def _client_create(self):
         # Initialize paho MQTT client.
+        logger.debug(f"{self._log_header} creating MQTT client...")
         client_kwargs = {
             "protocol": self.broker.protocol_version,
             "transport": self.broker.transport,
@@ -98,6 +108,8 @@ class Subscriber(Base):
             client_kwargs["client_id"] = self._client_id
         if self.broker.protocol_version in (mqttc.MQTTv31, mqttc.MQTTv311,):
             client_kwargs["clean_session"] = not self.use_persistent_session
+        logger.debug(
+            f"{self._log_header} MQTT client parameters: {client_kwargs}")
         client = mqttc.Client(**client_kwargs)
         # Set client callbacks.
         client.on_connect = self._on_connect
@@ -109,9 +121,12 @@ class Subscriber(Base):
 
     def _client_apply_security(self):
         # Apply MQTT security (authentication, TLS...).
+        logger.debug(f"{self._log_header} applying security on MQTT client...")
         if self.must_authenticate:
+            logger.debug(f"{self._log_header} use MQTT client authentication")
             self._client.username_pw_set(self.username, password=self.password)
         if self.broker.use_tls:
+            logger.debug(f"{self._log_header} use MQTT client TLS cert")
             self._client.tls_set(
                 ca_certs=self.broker.tls_certificate_filepath,
                 cert_reqs=self.broker.tls_verifymode,
@@ -167,13 +182,15 @@ class Subscriber(Base):
 
     def _on_connect(
             self, client, userdata, flags, reasonCode, properties=None):
+        # /!\ MQTTv3 and MQTTv5 do not set reasonCode value the same way...
         reason_code = reasonCode
         if isinstance(reasonCode, mqttc.ReasonCodes):
             reason_code = reasonCode.value
         if reason_code != 0:
-            # TODO: raise or log error
-            # use mqttc.connack_string(reason_code) to get a clean string
-            pass
+            # TODO: raise error?
+            logger.error(
+                f"{self._log_header} connection error reason: "
+                f"{mqttc.connack_string(reason_code)}")
 
         self._client_session_present = bool(flags.get("session present", 0))
 
@@ -204,9 +221,9 @@ class Subscriber(Base):
 
     def _on_disconnect(self, client, userdata, reasonCode, properties=None):
         if reasonCode != 0:
-            # TODO: raise or log error
-            # use mqttc.connack_string(reasonCode) to get a clean string
-            pass
+            logger.error(
+                f"{self._log_header} disconnection error reason: "
+                f"{mqttc.connack_string(reasonCode)}")
 
         # TODO: publish message on subscriber client status topic (->offline)?
 
@@ -255,8 +272,9 @@ class Subscriber(Base):
             if self.username is None:
                 raise ValueError("Broker requires username authentication!")
         elif self.username is not None:
-            # TODO: warn that subscriber authentication data is useless
-            pass
+            logger.warning(
+                f"{self._log_header} authentication data (username...)"
+                " is useless as broker do not require it.")
 
     def save(self, *, refresh=False):
         """Write the data to the database.

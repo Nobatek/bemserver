@@ -2,11 +2,16 @@
 
 import enum
 import ssl
+import logging
 import sqlalchemy as sqla
 import paho.mqtt.client as mqttc
 from pathlib import Path
 
 from bemserver.core.database import Base, db
+from bemserver.services.acquisition_mqtt import SERVICE_LOGNAME
+
+
+logger = logging.getLogger(SERVICE_LOGNAME)
 
 
 class Broker(Base):
@@ -78,6 +83,10 @@ class Broker(Base):
     def _db_state(self):
         return sqla.orm.util.object_state(self)
 
+    @property
+    def _log_header(self):
+        return f"[Broker #{self.id} @{self.host}]"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._tls_cert_dirpath = None
@@ -102,8 +111,10 @@ class Broker(Base):
             if self.tls_certificate is None:
                 raise ValueError("Missing certificate data!")
             if self.tls_verifymode == ssl.CERT_NONE:
-                # TODO: warn that this configuration is insecure in prod mode
-                pass
+                logger.warning(
+                    f"{self._log_header} TLS verify mode (CERT_NONE) not"
+                    " recommended as untrusted or expired cert are ignored and"
+                    " do not abort the TLS/SSL handshake.")
 
             if self.tls_version and self.tls_version not in (
                     ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_TLSv1_1,
@@ -115,8 +126,10 @@ class Broker(Base):
                 raise ValueError("Invalid broker TLS verify mode!")
 
     def _generate_tls_cert_file(self):
+        logger.info(f"{self._log_header} generating TLS cert file...")
         with open(str(self.tls_certificate_filepath), "w") as f:
             f.write(self.tls_certificate)
+        logger.debug(f"{self._log_header} TLS cert file generated!")
 
     def save(self, *, refresh=False):
         """Write the data to the database.

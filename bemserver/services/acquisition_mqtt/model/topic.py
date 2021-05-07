@@ -1,10 +1,14 @@
 """MQTT topic"""
 
+import logging
 import datetime as dt
 import sqlalchemy as sqla
 
 from bemserver.core.database import Base, db
-from bemserver.services.acquisition_mqtt import decoders
+from bemserver.services.acquisition_mqtt import decoders, SERVICE_LOGNAME
+
+
+logger = logging.getLogger(SERVICE_LOGNAME)
 
 
 class TopicByBroker(Base):
@@ -106,6 +110,9 @@ class TopicBySubscriber(Base):
     is_subscribed = sqla.Column(sqla.Boolean, nullable=False, default=False)
     timestamp_last_subscription = sqla.Column(sqla.DateTime(timezone=True))
 
+    topic = sqla.orm.relationship(
+        "Topic", backref=__tablename__, viewonly=True)
+
     def __repr__(self):
         str_fields = ", ".join([
             f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
@@ -122,6 +129,9 @@ class TopicBySubscriber(Base):
             # Only update this field value at subscription time.
             self.timestamp_last_subscription = dt.datetime.now(dt.timezone.utc)
         self.save()
+        logger.info(
+            f"[Topic {self.topic.name}] status updated to "
+            f"{'subscribed' if is_subscribed else 'unsubscribed'}")
 
     def save(self):
         """Write the item data to the database."""

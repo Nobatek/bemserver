@@ -46,6 +46,9 @@ class Service:
             Client ID to use, especially when using a persistent session.
         :raises ServiceError: When no enabled subscriber is available.
         """
+        if self._logger is not None:
+            self._logger.debug("Starting service...")
+
         self._register_decoders()
 
         rows = Subscriber.get_list(is_enabled=True)
@@ -65,14 +68,20 @@ class Service:
                 self._running_subscribers.append(subscriber)
 
         self.is_running = True
+        if self._logger is not None:
+            self._logger.debug("Service is running!")
 
     def stop(self):
         """Stop the MQTT acquisition service.
 
         Each enabled subscriber is disconnected.
         """
+        if self._logger is not None:
+            self._logger.debug("Stopping service...")
         while len(self._running_subscribers) > 0:
             self._running_subscribers[0].disconnect()
             if not self._running_subscribers[0].is_connected:
                 del self._running_subscribers[0]
         self.is_running = False
+        if self._logger is not None:
+            self._logger.debug("Service is stopped!")
