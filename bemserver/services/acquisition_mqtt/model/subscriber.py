@@ -133,16 +133,19 @@ class Subscriber(Base):
         self._client.connect(**cli_conn_kwargs)
         # TODO: raise or log errors
 
-    def connect(self, client_id=None):
+    def connect(self, client_id=None, *, logger=None):
         """Instantiate the MQTT client and connect it to its broker.
 
         :param str client_id: (optional, default None)
             Client ID to use, especially when using a persistent session.
+        :param logging.Logger logger: (optional, default None)
+            The logger to use for subscriber MQTT client.
         :raises ssl.SSLError: When TLS certificate is not valid.
         :raises ssl.SSLCertVerificationError: When TLS certificate expired.
         """
         self._client_id = client_id
         self._client = self._client_create()
+        self._client.enable_logger(logger)
         self._client_apply_security()
         self._client_connect()
 
@@ -187,6 +190,7 @@ class Subscriber(Base):
             topic.update_subscription(self.id, False)
 
         self._client.disconnect()
+        self._client.disable_logger()
 
         # TODO: Improve this in case to avoid infinite loop.
         # Wait for the disconnection to be effective.
@@ -241,12 +245,6 @@ class Subscriber(Base):
 
     def _on_unsubscribe(self, client, userdata, mid, properties, reasonCode):
         pass
-
-    def enable_logger(self, logger=None):
-        self._client.enable_logger(logger=logger)
-
-    def disable_logger(self):
-        self._client.disable_logger()
 
     def _on_log(self, client, userdata, level, buf):
         pass

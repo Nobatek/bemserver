@@ -2,9 +2,11 @@
 
 import time
 import json
+import logging
 import pytest
 import datetime as dt
 import sqlalchemy as sqla
+from pathlib import Path
 
 from bemserver.core.database import db
 from bemserver.core.model import TimeseriesData
@@ -316,3 +318,50 @@ class TestSubscriberModel:
 
         subscriber.disconnect()
         assert not subscriber.is_connected
+
+    def test_subscriber_logger(
+            self, database, subscriber, topic, publisher, tmpdir):
+
+        topic.add_subscriber(subscriber.id)
+
+        logger = logging.getLogger("mqtt_subscriber_logger")
+        logger.setLevel(logging.DEBUG)
+        log_filepath = Path(str(tmpdir)) / "acquisition_mqtt.log"
+        logfile_handler = logging.FileHandler(log_filepath)
+        logfile_handler.setLevel(logging.NOTSET)
+        logger.addHandler(logfile_handler)
+
+        # Log file exists and is empty.
+        assert log_filepath.exists()
+        with log_filepath.open("r") as logfile:
+            assert len(logfile.read()) <= 0
+
+        # Connect/disconnect without logger.
+        subscriber.connect()
+        subscriber.disconnect()
+
+        # Log file is still empty.
+        with log_filepath.open("r") as logfile:
+            assert len(logfile.read()) <= 0
+
+        subscriber.connect(logger=logger)
+        time.sleep(0.5)
+        subscriber.disconnect()
+
+        # Timeseries data has been received.
+        stmt = sqla.select(TimeseriesData)
+        for topic_link in topic.links:
+            stmt = stmt.filter(
+                TimeseriesData.timeseries_id == topic_link.timeseries_id
+            )
+        stmt = stmt.order_by(
+            TimeseriesData.timestamp
+        )
+        rows = db.session.execute(stmt).all()
+        assert len(rows) == 1
+        assert rows[0][0].value == 42
+
+        # And log file exists and is not empty.
+        assert log_filepath.exists()
+        with log_filepath.open("r") as logfile:
+            assert len(logfile.read()) > 0

@@ -9,16 +9,20 @@ from bemserver.services.acquisition_mqtt.model import (
 from bemserver.services.acquisition_mqtt.exceptions import ServiceError
 
 
-# TODO: logging
-
-
 MQTT_CLIENT_ID = "bemserver-acquisition"
 
 
 class Service:
+    """Acquisition service for timeseries data, based on MQTT protocol.
 
-    def __init__(self, working_dirpath):
+    :param str|Path working_dirpath:
+    :param logging.logger logger: (optional, default None)
+        The logger to use for the subscriber MQTT client.
+    """
+
+    def __init__(self, working_dirpath, *, logger=None):
         self._tls_cert_dirpath = Path(working_dirpath)
+        self._logger = logger
         self._running_subscribers = []
         self.is_running = False
 
@@ -56,7 +60,7 @@ class Service:
                 subscriber.broker.tls_certificate_dirpath = (
                     self._tls_cert_dirpath)
             # Connect subscriber.
-            subscriber.connect(client_id)
+            subscriber.connect(client_id, logger=self._logger)
             if subscriber.is_connected:
                 self._running_subscribers.append(subscriber)
 
