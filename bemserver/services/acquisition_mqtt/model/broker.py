@@ -7,14 +7,14 @@ import sqlalchemy as sqla
 import paho.mqtt.client as mqttc
 from pathlib import Path
 
-from bemserver.core.database import Base, db
+from bemserver.core.database import Base, BaseMixin
 from bemserver.services.acquisition_mqtt import SERVICE_LOGNAME
 
 
 logger = logging.getLogger(SERVICE_LOGNAME)
 
 
-class Broker(Base):
+class Broker(Base, BaseMixin):
     """Describes each broker configuration.
 
     :param str host: Host name used for the connection to the broker.
@@ -80,10 +80,6 @@ class Broker(Base):
         self._generate_tls_cert_file()
 
     @property
-    def _db_state(self):
-        return sqla.orm.util.object_state(self)
-
-    @property
     def _log_header(self):
         return f"[Broker #{self.id} @{self.host}]"
 
@@ -91,12 +87,6 @@ class Broker(Base):
         super().__init__(*args, **kwargs)
         self._tls_cert_dirpath = None
         self._tls_cert_filename = f"{self.host}.crt"
-
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
 
     def _verify_consistency(self):
         if self.protocol_version and self.protocol_version not in (
@@ -130,42 +120,3 @@ class Broker(Base):
         with open(str(self.tls_certificate_filepath), "w") as f:
             f.write(self.tls_certificate)
         logger.debug(f"{self._log_header} TLS cert file generated!")
-
-    def save(self, *, refresh=False):
-        """Write the data to the database.
-
-        :param bool refresh: (optional, default False)
-            Force to refresh this object data after commit.
-        """
-        self._verify_consistency()
-        # This object was deleted and is detached from session.
-        if self._db_state.was_deleted:
-            # Set the object transient (session rollback of the deletion).
-            sqla.orm.make_transient(self)
-        db.session.add(self)
-        db.session.commit()
-        if refresh:
-            db.session.refresh(self)
-
-    def delete(self):
-        """Delete the item from the database."""
-        # Verfify that object is not deleted yet to avoid a warning.
-        if not self._db_state.was_deleted:
-            db.session.delete(self)
-            try:
-                db.session.commit()
-            except sqla.exc.IntegrityError as exc:
-                db.session.rollback()
-                raise exc
-
-    @classmethod
-    def get_by_id(cls, id):
-        """Find a broker by its ID stored in database.
-
-        :param int id: Unique ID of the broker to find.
-        :returns Subscriber: Instance of broker found.
-        """
-        # Verfify that `id` exists to avoid a warning.
-        if id is None:
-            return None
-        return db.session.get(cls, id)

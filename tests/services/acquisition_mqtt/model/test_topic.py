@@ -231,14 +231,14 @@ class TestTopicByBrokerModel:
         assert topic.brokers == [broker]
         assert broker.topics == [topic]
 
-        topic_by_broker = TopicByBroker.get(topic.id, broker.id)
+        topic_by_broker = TopicByBroker.get_by_id((topic.id, broker.id,))
         assert topic_by_broker.is_enabled
 
         topic.remove_broker(broker.id)
         assert len(topic.brokers) == 0
         assert len(broker.topics) == 0
 
-        topic_by_broker = TopicByBroker.get(topic.id, broker.id)
+        topic_by_broker = TopicByBroker.get_by_id((topic.id, broker.id,))
         assert topic_by_broker is None
 
 
@@ -259,7 +259,8 @@ class TestTopicBySubscriberModel:
         assert len(topic.subscribers) == 1
         assert len(subscriber.topics) == 1
 
-        topic_by_subscriber = TopicBySubscriber.get(topic.id, subscriber.id)
+        topic_by_subscriber = TopicBySubscriber.get_by_id(
+            (topic.id, subscriber.id,))
         assert topic_by_subscriber.is_enabled
         assert not topic_by_subscriber.is_subscribed
         assert topic_by_subscriber.timestamp_last_subscription is None

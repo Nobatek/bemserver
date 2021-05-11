@@ -164,7 +164,8 @@ class TestSubscriberModel:
         assert len(rows) == 0
 
         # Get subscription state for the couple topic/subscriber.
-        topic_by_subscriber = TopicBySubscriber.get(topic.id, subscriber.id)
+        topic_by_subscriber = TopicBySubscriber.get_by_id(
+            (topic.id, subscriber.id,))
         assert not topic_by_subscriber.is_subscribed
 
         # Do not use a persistent session.
@@ -283,7 +284,8 @@ class TestSubscriberModel:
         assert len(rows) == 0
 
         # Get subscription state for the couple topic/subscriber.
-        topic_by_subscriber = TopicBySubscriber.get(topic.id, subscriber.id)
+        topic_by_subscriber = TopicBySubscriber.get_by_id(
+            (topic.id, subscriber.id,))
         assert not topic_by_subscriber.is_subscribed
 
         subscriber.connect(client_id)

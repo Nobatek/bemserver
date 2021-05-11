@@ -7,7 +7,7 @@ import sqlalchemy as sqla
 import paho.mqtt.client as mqttc
 import paho.mqtt.properties as mqtt_props
 
-from bemserver.core.database import Base, db
+from bemserver.core.database import Base, BaseMixin, db
 from bemserver.services.acquisition_mqtt import SERVICE_LOGNAME
 from bemserver.services.acquisition_mqtt.model import Broker
 
@@ -15,7 +15,7 @@ from bemserver.services.acquisition_mqtt.model import Broker
 logger = logging.getLogger(SERVICE_LOGNAME)
 
 
-class Subscriber(Base):
+class Subscriber(Base, BaseMixin):
     """The scubscriber describe how to connect to a broker.
 
     Subscriber client waits for messages as soon as it is connected.
@@ -78,10 +78,6 @@ class Subscriber(Base):
         return self.broker.is_auth_required and self.username is not None
 
     @property
-    def _db_state(self):
-        return sqla.orm.util.object_state(self)
-
-    @property
     def _log_header(self):
         return f"[Subscriber #{self.id} @{self.broker.host}]"
 
@@ -90,12 +86,6 @@ class Subscriber(Base):
         self._client_id = None
         self._client = None
         self._client_session_present = False
-
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
 
     def _client_create(self):
         # Initialize paho MQTT client.
@@ -275,48 +265,6 @@ class Subscriber(Base):
             logger.warning(
                 f"{self._log_header} authentication data (username...)"
                 " is useless as broker do not require it.")
-
-    def save(self, *, refresh=False):
-        """Write the data to the database.
-
-        :param bool refresh: (optional, default False)
-            Force to refresh this object data after commit.
-        """
-        self._verify_consistency()
-        # This object was deleted and is detached from session.
-        if self._db_state.was_deleted:
-            # Set the object transient (session rollback of the deletion).
-            sqla.orm.make_transient(self)
-        db.session.add(self)
-        db.session.commit()
-        if refresh:
-            db.session.refresh(self)
-
-    def delete(self):
-        """Delete the item from the database."""
-        # Verfify that object is not deleted yet to avoid a warning.
-        if not self._db_state.was_deleted:
-            db.session.delete(self)
-            try:
-                db.session.commit()
-            except sqla.exc.IntegrityError as exc:
-                db.session.rollback()
-                raise exc
-
-    @classmethod
-    def get_by_id(cls, id):
-        """Find a subscriber by its ID stored in database.
-
-        :param int id: Unique ID of the subscriber to find.
-        :returns Subscriber: Instance of subscriber found.
-        """
-        # Verfify that `id` exists to avoid a warning.
-        if id is None:
-            return None
-        try:
-            return db.session.get(cls, id)
-        except sqla.orm.exc.ObjectDeletedError:
-            return None
 
     @classmethod
     def get_list(cls, is_enabled=None):

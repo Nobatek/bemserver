@@ -3,7 +3,7 @@
 import logging
 import sqlalchemy as sqla
 
-from bemserver.core.database import Base, db
+from bemserver.core.database import Base, BaseMixin, db
 from bemserver.services.acquisition_mqtt import decoders, SERVICE_LOGNAME
 from bemserver.services.acquisition_mqtt.exceptions import (
     PayloadDecoderRegistrationError)
@@ -12,7 +12,7 @@ from bemserver.services.acquisition_mqtt.exceptions import (
 logger = logging.getLogger(SERVICE_LOGNAME)
 
 
-class PayloadField(Base):
+class PayloadField(Base, BaseMixin):
     """Describers the fields of each payload.
 
     :param int payload_decoder_id: Relation to a payload decoder unique ID.
@@ -38,35 +38,6 @@ class PayloadField(Base):
         "TopicLink", back_populates="payload_field", cascade="all,delete",
         passive_deletes=True)
 
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
-
-    def save(self):
-        """Write the item data to the database."""
-        db.session.add(self)
-        try:
-            db.session.commit()
-        except sqla.exc.IntegrityError as exc:
-            db.session.rollback()
-            raise exc
-
-    def delete(self):
-        """Delete the item from the database."""
-        db.session.delete(self)
-        db.session.commit()
-
-    @classmethod
-    def get_by_id(cls, id):
-        """Find a payload field by its ID stored in database.
-
-        :param int id: Unique ID of the payload field to find.
-        :returns PayloadField: Instance found of `PayloadField`.
-        """
-        return db.session.get(PayloadField, id)
-
     @classmethod
     def get(cls, payload_decoder_id, field_name):
         """Find in database a payload field by its name and payload decoder ID.
@@ -85,7 +56,7 @@ class PayloadField(Base):
             return None
 
 
-class PayloadDecoder(Base):
+class PayloadDecoder(Base, BaseMixin):
     """Decribes a payload decoder, with the fields it contains.
 
     :param str name: Unique name of payload decoder.
@@ -102,16 +73,6 @@ class PayloadDecoder(Base):
     fields = sqla.orm.relationship(
         "PayloadField", back_populates="payload_decoder", cascade="all,delete",
         passive_deletes=True)
-
-    @property
-    def _db_state(self):
-        return sqla.orm.util.object_state(self)
-
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
 
     def add_field(self, field_name):
         """Add a payload field to this payload decoder.
@@ -143,32 +104,6 @@ class PayloadDecoder(Base):
         if field in self.fields:
             field.delete()
 
-    def save(self, *, refresh=False):
-        """Write the data to the database.
-
-        :param bool refresh: (optional, default False)
-            Force to refresh this object data after commit.
-        """
-        # This object was deleted and is detached from session.
-        if self._db_state.was_deleted:
-            # Set the object transient (session rollback of the deletion).
-            sqla.orm.make_transient(self)
-        db.session.add(self)
-        db.session.commit()
-        if refresh:
-            db.session.refresh(self)
-
-    def delete(self):
-        """Delete the item from the database."""
-        # Verfify that object is not deleted yet to avoid a warning.
-        if not self._db_state.was_deleted:
-            db.session.delete(self)
-            try:
-                db.session.commit()
-            except sqla.exc.IntegrityError as exc:
-                db.session.rollback()
-                raise exc
-
     @classmethod
     def register_from_class(cls, decoder_cls):
         """Register a new payload decoder (with fields) in database.
@@ -197,18 +132,6 @@ class PayloadDecoder(Base):
         # TODO: if exists, try to update (description, add/remove fields)?
         logger.info(f"{decoder_cls.name} payload decoder registered!")
         return decoder
-
-    @classmethod
-    def get_by_id(cls, id):
-        """Find a subscriber by its ID stored in database.
-
-        :param int id: Unique ID of the payload decoder to find.
-        :returns PayloadDecoder: Instance found of `PayloadDecoder`.
-        """
-        # Verfify that `id` exists to avoid a warning.
-        if id is None:
-            return None
-        return db.session.get(cls, id)
 
     @classmethod
     def get_by_name(cls, name):

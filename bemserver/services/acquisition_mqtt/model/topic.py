@@ -4,14 +4,14 @@ import logging
 import datetime as dt
 import sqlalchemy as sqla
 
-from bemserver.core.database import Base, db
+from bemserver.core.database import Base, BaseMixin, db
 from bemserver.services.acquisition_mqtt import decoders, SERVICE_LOGNAME
 
 
 logger = logging.getLogger(SERVICE_LOGNAME)
 
 
-class TopicByBroker(Base):
+class TopicByBroker(Base, BaseMixin):
     """Describes the association between Topic and Broker.
 
     :param int topic_id: Relation to a topic unique ID.
@@ -36,44 +36,8 @@ class TopicByBroker(Base):
     )
     is_enabled = sqla.Column(sqla.Boolean, nullable=False, default=True)
 
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
 
-    def save(self):
-        """Write the item data to the database."""
-        db.session.add(self)
-        try:
-            db.session.commit()
-        except sqla.exc.IntegrityError as exc:
-            db.session.rollback()
-            raise exc
-
-    def delete(self):
-        """Delete the item from the database."""
-        db.session.delete(self)
-        db.session.commit()
-
-    @classmethod
-    def get(cls, topic_id, broker_id):
-        """Find an existing association, in database, between topic and broker.
-
-        :param int topic_id: Unique ID of a topic.
-        :param int broker_id: Unique ID of a broker.
-        :returns TopicByBroker: Instance found of `TopicByBroker`.
-        """
-        stmt = sqla.select(cls)
-        stmt = stmt.filter(cls.topic_id == topic_id)
-        stmt = stmt.filter(cls.broker_id == broker_id)
-        try:
-            return db.session.execute(stmt).one()[0]
-        except sqla.exc.NoResultFound:
-            return None
-
-
-class TopicBySubscriber(Base):
+class TopicBySubscriber(Base, BaseMixin):
     """Describes the association between Topic and Subscriber.
 
     :param int topic_id: Relation to a topic unique ID.
@@ -113,12 +77,6 @@ class TopicBySubscriber(Base):
     topic = sqla.orm.relationship(
         "Topic", backref=__tablename__, viewonly=True)
 
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
-
     def update_subscription(self, is_subscribed):
         """Update topic subscription status for a subscriber.
 
@@ -133,38 +91,8 @@ class TopicBySubscriber(Base):
             f"[Topic {self.topic.name}] status updated to "
             f"{'subscribed' if is_subscribed else 'unsubscribed'}")
 
-    def save(self):
-        """Write the item data to the database."""
-        db.session.add(self)
-        try:
-            db.session.commit()
-        except sqla.exc.IntegrityError as exc:
-            db.session.rollback()
-            raise exc
 
-    def delete(self):
-        """Delete the item from the database."""
-        db.session.delete(self)
-        db.session.commit()
-
-    @classmethod
-    def get(cls, topic_id, subscriber_id):
-        """Find an existing association between topic and subscriber.
-
-        :param int topic_id: Unique ID of a topic.
-        :param int subscriber_id: Unique ID of a subscriber.
-        :returns TopicBySubscriber: Instance found of `TopicBySubscriber`.
-        """
-        stmt = sqla.select(cls)
-        stmt = stmt.filter(cls.topic_id == topic_id)
-        stmt = stmt.filter(cls.subscriber_id == subscriber_id)
-        try:
-            return db.session.execute(stmt).one()[0]
-        except sqla.exc.NoResultFound:
-            return None
-
-
-class TopicLink(Base):
+class TopicLink(Base, BaseMixin):
     """Describers the links between topic, payload fields and timeseries.
 
     :param int topic_id: Relation to a topic unique ID.
@@ -200,26 +128,6 @@ class TopicLink(Base):
         "PayloadField", back_populates="topic_links")
     timeseries = sqla.orm.relationship("Timeseries", backref=__tablename__)
 
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
-
-    def save(self):
-        """Write the item data to the database."""
-        db.session.add(self)
-        try:
-            db.session.commit()
-        except sqla.exc.IntegrityError as exc:
-            db.session.rollback()
-            raise exc
-
-    def delete(self):
-        """Delete the item from the database."""
-        db.session.delete(self)
-        db.session.commit()
-
     @classmethod
     def get(cls, payload_field_id, timeseries_id):
         """Find a topic link in database, from its relation to a payload
@@ -239,7 +147,7 @@ class TopicLink(Base):
             return None
 
 
-class Topic(Base):
+class Topic(Base, BaseMixin):
     """Describes how topics should be subscribed and how payload is decoded.
 
     :param str name: Topic name (for example: "sensors/temperature/1").
@@ -290,20 +198,10 @@ class Topic(Base):
             self._payload_decoder_instance = self.payload_decoder_cls(self)
         return self._payload_decoder_instance
 
-    @property
-    def _db_state(self):
-        return sqla.orm.util.object_state(self)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._payload_decoder_cls = None
         self._payload_decoder_instance = None
-
-    def __repr__(self):
-        str_fields = ", ".join([
-            f"{x.name}={getattr(self, x.name)}" for x in self.__table__.columns
-        ])
-        return f"<{self.__table__.name}>({str_fields})"
 
     # TODO: add link from payload field name?
     def add_link(self, payload_field_id, timeseries_id):
@@ -338,7 +236,7 @@ class Topic(Base):
         return topic_by_broker
 
     def remove_broker(self, broker_id):
-        topic_by_broker = TopicByBroker.get(self.id, broker_id)
+        topic_by_broker = TopicByBroker.get_by_id((self.id, broker_id,))
         if topic_by_broker is not None:
             topic_by_broker.delete()
 
@@ -349,7 +247,8 @@ class Topic(Base):
         return topic_by_subscriber
 
     def remove_subscriber(self, subscriber_id):
-        topic_by_subscriber = TopicBySubscriber.get(self.id, subscriber_id)
+        topic_by_subscriber = TopicBySubscriber.get_by_id(
+            (self.id, subscriber_id,))
         if topic_by_subscriber is not None:
             topic_by_subscriber.delete()
 
@@ -357,34 +256,10 @@ class Topic(Base):
         if self.qos and self.qos not in (0, 1, 2,):
             raise ValueError("Invalid QoS level!")
 
-    def save(self, *, refresh=False):
-        """Write the data to the database.
-
-        :param bool refresh: (optional, default False)
-            Force to refresh this object data after commit.
-        """
-        self._verify_consistency()
-        # This object was deleted and is detached from session.
-        if self._db_state.was_deleted:
-            # Set the object transient (session rollback of the deletion).
-            sqla.orm.make_transient(self)
-            for link in self.links:
-                sqla.orm.make_transient(link)
-        db.session.add(self)
-        try:
-            db.session.commit()
-        except sqla.exc.IntegrityError as exc:
-            db.session.rollback()
-            raise exc
-        if refresh:
-            db.session.refresh(self)
-
-    def delete(self):
-        """Delete the item from the database."""
-        # Verfify that object is not deleted yet to avoid a warning.
-        if not self._db_state.was_deleted:
-            db.session.delete(self)
-            db.session.commit()
+    def _make_transient(self):
+        super()._make_transient()
+        for link in self.links:
+            sqla.orm.make_transient(link)
 
     def update_subscription(self, subscriber_id, is_subscribed):
         """Update topic subscription status.
@@ -393,18 +268,7 @@ class Topic(Base):
             Unique subscriber ID that has subscribed/unsubscribe to topic.
         :param bool is_subscribed: Whether topic has been subscribed or not.
         """
-        topic_by_subscriber = TopicBySubscriber.get(self.id, subscriber_id)
+        topic_by_subscriber = TopicBySubscriber.get_by_id(
+            (self.id, subscriber_id,))
         if topic_by_subscriber is not None:
             topic_by_subscriber.update_subscription(is_subscribed)
-
-    @classmethod
-    def get_by_id(cls, id):
-        """Find a subscriber by its ID stored in database.
-
-        :param int id: Unique ID of the subscriber to find.
-        :returns Subscriber: Instance found of `Subscriber`.
-        """
-        # Verfify that `id` exists to avoid a warning.
-        if id is None:
-            return None
-        return db.session.get(cls, id)
