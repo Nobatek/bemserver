@@ -114,9 +114,6 @@ def topic_name():
 
 @pytest.fixture
 def mosquitto_topic(mosquitto_topic_name, decoder_mosquitto_uptime):
-
-    print("IN mosquitto_topic")
-
     _, decoder = decoder_mosquitto_uptime
     topic = svc_model.Topic(
         name=mosquitto_topic_name, payload_decoder_id=decoder.id)
