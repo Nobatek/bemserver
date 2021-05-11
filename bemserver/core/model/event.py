@@ -3,11 +3,11 @@
 import datetime as dt
 import sqlalchemy as sqla
 
-from bemserver.core.database import Base
+from bemserver.core.database import Base, BaseMixin, db
 from bemserver.core.model.exceptions import EventError
 
 
-class EventCategory(Base):
+class EventCategory(Base, BaseMixin):
     __tablename__ = "event_category"
 
     id = sqla.Column(sqla.String(80), primary_key=True, nullable=False)
@@ -19,21 +19,21 @@ class EventCategory(Base):
     )
 
 
-class EventState(Base):
+class EventState(Base, BaseMixin):
     __tablename__ = "event_state"
 
     id = sqla.Column(sqla.String(80), primary_key=True, nullable=False)
     description = sqla.Column(sqla.String(250))
 
 
-class EventLevel(Base):
+class EventLevel(Base, BaseMixin):
     __tablename__ = "event_level"
 
     id = sqla.Column(sqla.String(80), primary_key=True, nullable=False)
     description = sqla.Column(sqla.String(250))
 
 
-class EventTarget(Base):
+class EventTarget(Base, BaseMixin):
     __tablename__ = "event_target"
 
     id = sqla.Column(sqla.String(80), primary_key=True, nullable=False)
@@ -51,7 +51,7 @@ class EventTarget(Base):
 #  the database ("state" column of "Event" table). It will probably help us
 #  later when requesting events from the database (by making things easier as
 #  "state" will just be an additional filter criteria).
-class Event(Base):
+class Event(Base, BaseMixin):
     __tablename__ = "event"
 
     id = sqla.Column(
@@ -104,24 +104,7 @@ class Event(Base):
                 return dt.datetime.now(dt.timezone.utc) - self.timestamp_start
         return None
 
-    def __repr__(self):
-        return (
-            f"<{self.__table__.name}>("
-            f"id={self.id}"
-            f", category={self.category}"
-            f", level={self.level}"
-            f", timestamp_start={self.timestamp_start}"
-            f", timestamp_end={self.timestamp_end}"
-            f", duration={self.duration}"
-            f", source={self.source}"
-            f", target_type={self.target_type}"
-            f", target_id={self.target_id}"
-            f", state={self.state}"
-            f", timestamp_last_update={self.timestamp_last_update}"
-            f", description={self.description}"
-            ")")
-
-    def extend(self, db=None):
+    def extend(self):
         """Change the state of the event to ONGOING:
             - a NEW event will be updated to ONGOING
             - an ONGOING event will still ONGOING
@@ -130,9 +113,6 @@ class Event(Base):
         Extending a NEW or ONGOING event also updates the timestamp_last_update
         field value.
 
-        :param DBConnection db: (optional, default None)
-            DBConneciton instance used to write the updated event in database.
-            If None, the `save` method must be called manually.
         :raises EventError: When trying to extend a CLOSED event.
         """
         if self.state == "CLOSED":
@@ -140,10 +120,9 @@ class Event(Base):
         if self.state != "ONGOING":
             self.state = "ONGOING"
         self.timestamp_last_update = dt.datetime.now(dt.timezone.utc)
-        if db is not None:
-            self.save(db)
+        self.save()
 
-    def close(self, timestamp_end=None, db=None):
+    def close(self, timestamp_end=None):
         """Change the state of the event to CLOSED (if not CLOSED yet) and
         update the timestamp_last_update field value.
 
@@ -151,9 +130,6 @@ class Event(Base):
 
         :param datetime timestamp_end: (optional, default None)
             Time (tz-aware) of when the event is CLOSED. Set to NOW if None.
-        :param DBConnection db: (optional, default None)
-            DBConneciton instance used to write the updated event in database.
-            If None, the `save` method must be called manually.
         """
         # TODO: warn if event is already closed?
         if self.state != "CLOSED":
@@ -161,32 +137,12 @@ class Event(Base):
             ts_now = dt.datetime.now(dt.timezone.utc)
             self.timestamp_last_update = ts_now
             self.timestamp_end = timestamp_end or ts_now
-            if db is not None:
-                self.save(db)
-
-    def save(self, db):
-        """Write the event data to the database.
-
-        :param DBConnection db: A `DBConnection` instance to save the event.
-        """
-        db.session.add(self)
-        db.session.flush()
-        db.session.commit()
-        db.session.refresh(self)
-
-    def delete(self, db):
-        """Delete the event from the database.
-
-        :param DBConnection db: A `DBConnection` instance to delete the event.
-        """
-        db.session.delete(self)
-        db.session.flush()
-        db.session.commit()
+            self.save()
 
     @classmethod
     def open(
             cls, category, source, target_type, target_id, level="ERROR",
-            timestamp_start=None, description=None, db=None):
+            timestamp_start=None, description=None):
         """Create a NEW event.
 
         :param string category: The category of the event. See `EventCategory`.
@@ -200,9 +156,6 @@ class Event(Base):
             Time (tz-aware) of when the event is opened. Set to NOW if None.
         :param string description: (optional, default None)
             Text to describe the event.
-        :param DBConnection db: (optional, default None)
-            DBConneciton instance used to write the updated event in database.
-            If None, the `save` method must be called manually.
         :returns Event: The instance of the event created.
         """
         ts_now = dt.datetime.now(dt.timezone.utc)
@@ -211,13 +164,12 @@ class Event(Base):
             target_type=target_type, target_id=target_id,
             timestamp_start=timestamp_start or ts_now,
             timestamp_last_update=ts_now, description=description)
-        if db is not None:
-            evt.save(db)
+        evt.save()
         return evt
 
     @classmethod
     def list_by_state(
-            cls, db, states=("NEW", "ONGOING",), category=None, source=None,
+            cls, states=("NEW", "ONGOING",), category=None, source=None,
             level="ERROR", target_type=None, target_id=None):
         if states is None or len(states) <= 0:
             raise EventError("Missing `state` filter.")

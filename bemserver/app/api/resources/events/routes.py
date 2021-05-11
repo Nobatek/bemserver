@@ -81,7 +81,7 @@ class EventsViews(MethodView):
         Create an event with a `NEW` state.
         """
         item = Event.open(**new_item)
-        item.save(db)
+        item.save()
         return item
 
 
@@ -92,7 +92,7 @@ class EventsByIdViews(MethodView):
     @blp.response(200, EventSchema)
     def get(self, item_id):
         """Get en event by its ID"""
-        item = db.session.get(Event, item_id)
+        item = Event.get_by_id(item_id)
         if item is None:
             abort(404)
         return item
@@ -101,11 +101,11 @@ class EventsByIdViews(MethodView):
     @blp.response(204)
     def delete(self, item_id):
         """Delete an event"""
-        item = db.session.get(Event, item_id)
+        item = Event.get_by_id(item_id)
         if item is None:
             abort(404)
         blp.check_etag(item, EventSchema)
-        item.delete(db)
+        item.delete()
 
 
 @blp.route('/<int:item_id>/extend', methods=('PUT',))
@@ -119,13 +119,12 @@ def put_extend(item_id):
     `timestamp_last_update`.
     Returns a *400* status code if the event is `CLOSED`.
     """
-    item = db.session.get(Event, item_id)
+    item = Event.get_by_id(item_id)
     if item is None:
         abort(404)
     blp.check_etag(item, EventSchema)
     try:
         item.extend()
-        item.save(db)
     except EventError as exc:
         abort(400, str(exc))
     return item
@@ -141,10 +140,9 @@ def put_close(args, item_id):
     Mainly change the state of the event to `CLOSED` and update
     `timestamp_last_update`. Nothing is done if the event is already `CLOSED`.
     """
-    item = db.session.get(Event, item_id)
+    item = Event.get_by_id(item_id)
     if item is None:
         abort(404)
     blp.check_etag(item, EventSchema)
     item.close(**args)
-    item.save(db)
     return item
